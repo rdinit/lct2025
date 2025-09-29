@@ -1,0 +1,41 @@
+<html>
+
+<script>
+    // Browser version (run in browser console)
+    ws = new WebSocket(`ws://${window.location.host}/send?sensor_id=0`);
+
+
+    let startTime = Date.now() / 1000;
+    let lastTime = 0;
+
+    ws.onopen = function () {
+        console.log('Connected to WebSocket server');
+        sendData();
+    };
+
+    function sendData() {
+        const currentTime = (Date.now() / 1000) - startTime;
+
+            const messageTime = currentTime
+            const randomValue = Math.random() * 100;
+            const message = `${messageTime.toFixed(4)},${randomValue.toFixed(4)}`;
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(message);
+                console.log(`Sent: ${message}`);
+            }
+
+
+        setTimeout(sendData, 150);
+    }
+
+    ws.onclose = function () {
+        console.log('WebSocket connection closed');
+    };
+
+    ws.onerror = function (error) {
+        console.error('WebSocket error:', error);
+    };
+</script>
+
+</html>

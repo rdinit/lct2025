@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sensor Data Plot</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        #chartContainer {
+            position: relative;
+        }
+        #sensorInfo {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="sensorInfo">Sensor ID: 0 - Connected: <span id="status">false</span></div>
+    <div id="chartContainer">
+        <canvas id="sensorChart" width="1200" height="600"></canvas>
+    </div>
+
+    <script>
+        // Configuration
+        const SENSOR_ID = 0;
+        const MAX_POINTS = 200; // Number of points to keep in memory
+        
+        const WS_URL = `wss://${window.location.host}/data?sensor_id=0`;
+
+        // Data storage
+        let dataPoints = [];
+        let isConnected = false;
+
+        // Canvas setup
+        const canvas = document.getElementById('sensorChart');
+        const ctx = canvas.getContext('2d');
+        const statusElement = document.getElementById('status');
+
+        // WebSocket connection
+        const ws = new WebSocket(WS_URL);
+
+        ws.onopen = function() {
+            console.log('Connected to WebSocket server');
+            isConnected = true;
+            statusElement.textContent = 'true';
+            statusElement.style.color = 'green';
+        };
+
+        ws.onmessage = function(event) {
+            const message = event.data;
+            try {
+                const [timeStr, valueStr] = message.split(',');
+                const time = parseFloat(timeStr);
+                const value = parseFloat(valueStr);
+                console.log(`Received: time=${time}, value=${value}`);
+                // Add new data point
+                dataPoints.push({ time, value });
+                
+                // Keep only the most recent points
+                if (dataPoints.length > MAX_POINTS) {
+                    dataPoints = dataPoints.slice(-MAX_POINTS);
+                }
+                
+                // Redraw the chart
+                drawChart();
+                
+            } catch (error) {
+                console.error('Error parsing message:', error);
+            }
+        };
+
+        ws.onclose = function() {
+            console.log('WebSocket connection closed');
+            isConnected = false;
+            statusElement.textContent = 'false';
+            statusElement.style.color = 'red';
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            isConnected = false;
+            statusElement.textContent = 'error';
+            statusElement.style.color = 'red';
+        };
+
+        function drawChart() {
+            if (dataPoints.length === 0) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Chart dimensions with padding
+            const padding = 40;
+            const chartWidth = canvas.width - (padding * 2);
+            const chartHeight = canvas.height - (padding * 2);
+            
+            // Find data range
+            const times = dataPoints.map(p => p.time);
+            const values = dataPoints.map(p => p.value);
+            
+            const minTime = Math.min(...times);
+            const maxTime = Math.max(...times);
+            const minValue = Math.min(...values);
+            const maxValue = Math.max(...values);
+            
+            // Add some padding to value range for better visualization
+            const valueRange = maxValue - minValue;
+            const valuePadding = valueRange * 0.1;
+            const displayMinValue = minValue - valuePadding;
+            const displayMaxValue = maxValue + valuePadding;
+            
+            // Scale factors
+            const xScale = chartWidth / (maxTime - minTime || 1);
+            const yScale = chartHeight / (displayMaxValue - displayMinValue || 1);
+            
+            // Draw axes
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            
+            // X-axis
+            ctx.beginPath();
+            ctx.moveTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            ctx.stroke();
+            
+            // Y-axis
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            ctx.stroke();
+            
+            // Draw grid and labels
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            
+            // X-axis labels (time)
+            const timeStep = (maxTime - minTime) / 5;
+            for (let i = 0; i <= 5; i++) {
+                const time = minTime + i * timeStep;
+                const x = padding + (time - minTime) * xScale;
+                
+                ctx.beginPath();
+                ctx.moveTo(x, canvas.height - padding - 5);
+                ctx.lineTo(x, canvas.height - padding + 5);
+                ctx.stroke();
+                
+                ctx.fillText(time.toFixed(1), x, canvas.height - padding + 20);
+            }
+            
+            // Y-axis labels (value)
+            ctx.textAlign = 'right';
+            const valueStep = (displayMaxValue - displayMinValue) / 5;
+            for (let i = 0; i <= 5; i++) {
+                const value = displayMinValue + i * valueStep;
+                const y = canvas.height - padding - (value - displayMinValue) * yScale;
+                
+                ctx.beginPath();
+                ctx.moveTo(padding - 5, y);
+                ctx.lineTo(padding + 5, y);
+                ctx.stroke();
+                
+                ctx.fillText(value.toFixed(1), padding - 10, y + 4);
+            }
+            
+            // Draw data line
+            if (dataPoints.length > 1) {
+                ctx.strokeStyle = '#007bff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                dataPoints.forEach((point, index) => {
+                    const x = padding + (point.time - minTime) * xScale;
+                    const y = canvas.height - padding - (point.value - displayMinValue) * yScale;
+                    
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+            }
+            
+            // Draw data points
+            ctx.fillStyle = '#007bff';
+            dataPoints.forEach(point => {
+                const x = padding + (point.time - minTime) * xScale;
+                const y = canvas.height - padding - (point.value - displayMinValue) * yScale;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+            
+            // Draw chart title
+            ctx.fillStyle = '#000';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Sensor ${SENSOR_ID} - Real-time Data`, canvas.width / 2, 20);
+            
+            // Draw current value
+            const lastPoint = dataPoints[dataPoints.length - 1];
+            ctx.fillStyle = '#d9534f';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Current: ${lastPoint.value.toFixed(4)}`, padding, 30);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            // You could add responsive behavior here if needed
+            drawChart();
+        });
+
+        // Initial empty chart
+        drawChart();
+    </script>
+</body>
+</html>
