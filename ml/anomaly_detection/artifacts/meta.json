@@ -1,0 +1,58 @@
+{
+  "config": {
+    "time_col": "timestamp",
+    "group_col": "group_id",
+    "seq_col": "sequence_id",
+    "target_cols": [
+      "bpm",
+      "uterus"
+    ],
+    "lags": [
+      1,
+      2,
+      3,
+      6,
+      12,
+      24
+    ],
+    "roll_windows": [
+      3,
+      6,
+      12
+    ],
+    "val_size": 0.2,
+    "random_state": 42,
+    "n_estimators": 300,
+    "max_samples": "auto",
+    "contamination": "auto",
+    "max_features": 1.0,
+    "n_jobs": null,
+    "verbose": 0
+  },
+  "feature_cols": [
+    "bpm_lag_1",
+    "uterus_lag_1",
+    "bpm_lag_2",
+    "uterus_lag_2",
+    "bpm_lag_3",
+    "uterus_lag_3",
+    "bpm_lag_6",
+    "uterus_lag_6",
+    "bpm_lag_12",
+    "uterus_lag_12",
+    "bpm_lag_24",
+    "uterus_lag_24",
+    "bpm_rollmean_3",
+    "uterus_rollmean_3",
+    "bpm_rollstd_3",
+    "uterus_rollstd_3",
+    "bpm_rollmean_6",
+    "uterus_rollmean_6",
+    "bpm_rollstd_6",
+    "uterus_rollstd_6",
+    "bpm_rollmean_12",
+    "uterus_rollmean_12",
+    "bpm_rollstd_12",
+    "uterus_rollstd_12"
+  ]
+}
