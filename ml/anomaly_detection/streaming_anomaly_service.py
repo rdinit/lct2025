@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os, json, pickle
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional, Callable
+from typing import Dict, List, Tuple, Optional
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
@@ -17,7 +17,7 @@ class _MetaCfg:
     feature_cols: List[str]
 
 class StreamingAnomalyDetector:
-    def __init__(self, model_dir: str, external_forecast_fn: Optional[Callable[[List[float], List[float], int], Tuple[List[float], List[float]]]] = None):
+    def __init__(self, model_dir: str):
         with open(os.path.join(model_dir, "model_if.pkl"), "rb") as f:
             self.model: IsolationForest = pickle.load(f)
         with open(os.path.join(model_dir, "meta.json"), "r", encoding="utf-8") as f:
@@ -31,10 +31,8 @@ class StreamingAnomalyDetector:
         self.max_lag = max(self.meta.lags) if self.meta.lags else 1
         self.buffers: Dict[str, List[float]] = {self.meta.target_cols[0]: [], self.meta.target_cols[1]: []}
         self.last_ts_sec: Optional[float] = None
-        self.step_sec: float = 1.0
         self.group_id = None
         self.sequence_id = None
-        self.external_forecast_fn = external_forecast_fn
 
     def _ready(self) -> bool:
         return (self.last_ts_sec is not None) and all(len(self.buffers[t]) >= self.max_lag for t in self.buffers)
@@ -50,12 +48,7 @@ class StreamingAnomalyDetector:
         df = history_df.sort_values(tcol).reset_index(drop=True).copy()
         if not pd.api.types.is_numeric_dtype(df[tcol]):
             df[tcol] = pd.to_datetime(df[tcol]).astype("int64") / 1e9
-        if len(df) >= 2:
-            diffs = np.diff(df[tcol].astype(float).to_numpy())
-            step = np.median(diffs)
-            self.step_sec = float(step) if np.isfinite(step) and step > 0 else 1.0
-        else:
-            self.step_sec = 1.0
+        
         self.last_ts_sec = float(df[tcol].iloc[-1]) if len(df) else None
         self.group_id = df[self.meta.group_col].iloc[-1] if self.meta.group_col in df else None
         self.sequence_id = df[self.meta.seq_col].iloc[-1] if self.meta.seq_col in df else None
@@ -69,10 +62,6 @@ class StreamingAnomalyDetector:
 
     def update_one(self, ts, bpm, uterus, group_id=None, sequence_id=None):
         ts_sec = self._ts_to_sec(ts)
-        if self.last_ts_sec is not None:
-            dt = float(ts_sec) - float(self.last_ts_sec)
-            if np.isfinite(dt) and dt > 0:
-                self.step_sec = float(dt)
         self.last_ts_sec = float(ts_sec)
         t1, t2 = self.meta.target_cols
         self.buffers[t1].append(float(bpm))
@@ -99,68 +88,51 @@ class StreamingAnomalyDetector:
             row[f"{t2}_rollstd_{W}"]  = float(np.std(c2, ddof=0)) if len(c2) else np.nan
         return row
 
-    def _roll_forward_values(self, b1: List[float], b2: List[float], horizon: int) -> Tuple[List[float], List[float]]:
-        if len(b1) == 0 or len(b2) == 0:
-            return b1, b2
-        v1, v2 = b1[-1], b2[-1]
-        ext1 = b1 + [v1] * horizon
-        ext2 = b2 + [v2] * horizon
-        return ext1, ext2
-
-    def forecast(self, horizon: int) -> pd.DataFrame:
+    def detect_anomaly(self) -> Dict[str, any]:
         if not self._ready():
             raise RuntimeError("Detector not ready; warm_start or accumulate more points first")
-        src_b1 = list(self.buffers[self.meta.target_cols[0]])
-        src_b2 = list(self.buffers[self.meta.target_cols[1]])
-
-        if self.external_forecast_fn is not None:
-            fb1, fb2 = self.external_forecast_fn(src_b1, src_b2, horizon)
-            tb1 = list(fb1)
-            tb2 = list(fb2)
-        else:
-            tb1, tb2 = self._roll_forward_values(src_b1, src_b2, horizon)
-
-        rows = []
-        for h in range(1, horizon + 1):
-            b1h = tb1[:len(src_b1) + h]
-            b2h = tb2[:len(src_b2) + h]
-            feat = self._feature_row(b1h, b2h)
-            rows.append(feat)
-
-        X = pd.DataFrame(rows, columns=self.meta.feature_cols).astype(np.float32)
-        y_pred_pm1 = self.model.predict(X)
-        flags = (y_pred_pm1 == -1).astype(int).tolist()
-        scores = self.model.decision_function(X).tolist()
-
-        preds = []
-        for h in range(1, horizon + 1):
-            preds.append({
-                self.meta.time_col: self.last_ts_sec + h * self.step_sec,
-                self.meta.group_col: self.group_id,
-                self.meta.seq_col: self.sequence_id,
-                "anomaly_flag": int(flags[h-1]),
-                "anomaly_score": float(scores[h-1]),
-                "h": h
-            })
-        return pd.DataFrame(preds)
+        
+        b1 = list(self.buffers[self.meta.target_cols[0]])
+        b2 = list(self.buffers[self.meta.target_cols[1]])
+        
+        # Построить признаки для текущей точки
+        feat = self._feature_row(b1, b2)
+        X = pd.DataFrame([feat], columns=self.meta.feature_cols).astype(np.float32)
+        
+        # Предсказание: -1 для аномалии, +1 для нормы
+        y_pred = self.model.predict(X)[0]
+        anomaly_flag = 1 if y_pred == -1 else 0  # Конвертируем в 0/1
+        
+        # Скор аномальности (чем меньше, тем более аномально)
+        anomaly_score = float(self.model.decision_function(X)[0])
+        
+        return {
+            self.meta.time_col: self.last_ts_sec,
+            self.meta.group_col: self.group_id,
+            self.meta.seq_col: self.sequence_id,
+            "bpm": b1[-1],
+            "uterus": b2[-1],
+            "bpm_anomaly": anomaly_flag,  # Флаг аномалии для bpm
+            "uterus_anomaly": anomaly_flag,  # Флаг аномалии для uterus  
+            "anomaly_score": anomaly_score
+        }
 
 class AnomalyService:
-    def __init__(self, model_dir: str, external_forecast_fn: Optional[Callable[[List[float], List[float], int], Tuple[List[float], List[float]]]] = None):
-        self.template = StreamingAnomalyDetector(model_dir, external_forecast_fn)
+    def __init__(self, model_dir: str):
+        self.template = StreamingAnomalyDetector(model_dir)
         self.max_lag = self.template.max_lag
         self.model_dir = model_dir
-        self.external_forecast_fn = external_forecast_fn
         self._states: Dict[Tuple[str, str], Dict] = {}
 
     def _get_or_create(self, gid: str, sid: str) -> Dict:
         key = (gid, sid)
         st = self._states.get(key)
         if st is None:
-            st = {"det": StreamingAnomalyDetector(self.model_dir, self.external_forecast_fn), "hist": []}
+            st = {"det": StreamingAnomalyDetector(self.model_dir), "hist": []}
             self._states[key] = st
         return st
 
-    def process_message(self, msg: Dict, horizon: int) -> Dict:
+    def process_message(self, msg: Dict) -> Dict:
         ts = StreamingAnomalyDetector._ts_to_sec(msg["timestamp"])
         bpm = float(msg["bpm"]); ut = float(msg["uterus"])
         gid = str(msg["group_id"]); sid = str(msg["sequence_id"])
@@ -172,8 +144,8 @@ class AnomalyService:
                                det.meta.target_cols[0]: bpm, det.meta.target_cols[1]: ut})
             if len(st["hist"]) >= self.max_lag:
                 det.warm_start(pd.DataFrame(st["hist"]))
-            return {"ready": det._ready(), "forecast": [], "needed": max(0, self.max_lag - len(st["hist"]))}
+            return {"ready": det._ready(), "detection": {}, "needed": max(0, self.max_lag - len(st["hist"]))}
 
         det.update_one(ts, bpm, ut, gid, sid)
-        pred = det.forecast(horizon=horizon)
-        return {"ready": True, "forecast": pred.to_dict(orient="records"), "needed": 0}
+        detection = det.detect_anomaly()
+        return {"ready": True, "detection": detection, "needed": 0}

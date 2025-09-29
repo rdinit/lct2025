@@ -1,5 +1,7 @@
 1) Требования
-— Установить: pip install scikit-learn pandas numpy для обучения IsolationForest, сохранения/загрузки модели и детекции аномалий.  
+— Стриминг: инициализация сервиса
+— В приложении создать сервис: from streaming_anomaly_service import AnomalyService; svc = AnomalyService("artifacts") — «аrtifacts» это путь к папке с model_if.pkl/meta.json.  
+— Сервис готов принимать сообщения и вести состояние по каждому (group_id, sequence_id) до накопления min max_lag точек, необходимых для старта детекции.: pip install scikit-learn pandas numpy для обучения IsolationForest, сохранения/загрузки модели и детекции аномалий.  
 — Python‑скрипты используют argparse для CLI, что позволяет задавать параметры обучения из консоли.  
 
 2) Файлы проекта
@@ -31,23 +33,27 @@
 — Для ISO‑строк время переводится через pandas.to_datetime(...).value/1e9, что обеспечивает единый формат времени для расчёта лагов.  
 
 8) Вызов онлайн‑детекции аномалий
-— На каждое сообщение: out = svc.process_message(msg, horizon) — horizon это горизонт детекции в шагах, метод обновит буферы и вернёт результат при готовности.  
-— Ответ: {"ready": bool, "forecast": List[Dict], "needed": int}; когда ready=True, forecast — это список из horizon будущих точек с полями timestamp, group_id, sequence_id, anomaly_flag, anomaly_score и h.  
+— На каждое сообщение: out = svc.process_message(msg) — метод обновит буферы и вернёт результат при готовности.  
+— Ответ: {"ready": bool, "detection": Dict, "needed": int}; когда ready=True, detection — это словарь с полями timestamp, group_id, sequence_id, bpm, uterus, bpm_anomaly, uterus_anomaly, anomaly_score.  
 
 9) Когда начинается детекция
-— Для каждого ряда сервис накапливает минимум max_lag исторических точек, после чего переходит к регулярным обновлениям update_one+forecast при приходе новых сообщений.  
+— Для каждого ряда сервис накапливает минимум max_lag исторических точек, после чего переходит к регулярным обновлениям update_one+detect_anomaly при приходе новых сообщений.  
 — До прогрева поле "needed" сообщает, сколько точек ещё требуется накопить для старта детекции по данному (group_id, sequence_id).  
 
 10) Принцип детекции аномалий
 — IsolationForest обучается только на тренировочных данных и определяет "нормальное" поведение.  
-— Для детекции на horizon шагов строятся признаки на основе истории + прогнозированных значений (внешняя функция или продление последних).  
-— Модель возвращает anomaly_flag (-1 для аномалии, +1 для нормы) и anomaly_score (чем меньше, тем более аномально).  
+— Для каждой новой точки строятся признаки на основе истории (лаги и скользящие окна).  
+— Модель возвращает bpm_anomaly и uterus_anomaly (0 для нормы, 1 для аномалии) и anomaly_score (чем меньше, тем более аномально).  
 
-11) Интеграция с прогнозированием
-— StreamingAnomalyDetector принимает external_forecast_fn: Callable[[List[float], List[float], int], Tuple[List[float], List[float]]]  
-— Эта функция должна принимать историю bpm и uterus и возвращать прогнозы на horizon шагов для более точной детекции будущих аномалий.  
-— Если external_forecast_fn не предоставлена, используется простое продление последних значений.  
-
-12) Смена версии модели
+11) Смена версии модели
 — Переобучить модель новой командой train_anomaly.py на свежих данных и сохранить в новый каталог, например artifacts_v2.  
 — Запустить сервис с новым путём: AnomalyService("artifacts_v2") или переключить путь при деплое, обеспечив атомарную смену модели.
+
+12) Пример использования
+# svc = AnomalyService(model_dir="artifacts")
+# msg = {"timestamp": 1609459200, "bpm": 85.5, "uterus": 12.3, "group_id": "patient_1", "sequence_id": "session_1"}
+# out = svc.process_message(msg)
+# if out["ready"]: 
+#     detection = out["detection"]
+#     print(f"BPM anomaly: {detection['bpm_anomaly']}, Uterus anomaly: {detection['uterus_anomaly']}")
+#     print(f"Anomaly score: {detection['anomaly_score']}")
