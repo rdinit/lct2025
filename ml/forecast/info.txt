@@ -8,11 +8,13 @@
 — streaming_service.py: сервис со StreamingForecaster и ForecastService, метод process_message(msg, K) для онлайн‑прогноза.  
 
 3) Подготовка данных
-— CSV с колонками: timestamp, group_id, sequence_id, bpm, uterus; timestamp может быть строкой или числом и конвертируется в секунды от эпохи внутри пайплайна.  
+— convert_data.py читает структуру папок с физиологическими данными (hypoxia/regular -> group_id -> bpm/uterus -> CSV файлы), объединяет их в единый DataFrame с колонками: timestamp, group_id, sequence_id, bpm, uterus, target.  
+— timestamp уже в секундах от эпохи после merge_physiological_data, дополнительного преобразования не требуется.  
 — Значения group_id гарантируют раздельность пациентов в train/valid через GroupShuffleSplit при обучении.  
 
 4) Обучение (CLI)
-— Команда: python train.py --input_csv data.csv --out_dir artifacts --task_type CPU — обучит модель и валидирует по группам (group_id).  
+— Команда: python train.py --input_csv /path/to/data_directory --out_dir artifacts --task_type CPU — обучит модель и валидирует по группам (group_id).  
+— Параметр --input_csv ожидает путь к папке с данными (содержащей hypoxia/regular подпапки), а не к CSV файлу.  
 — Дополнительные параметры: --iterations, --learning_rate, --depth, --val_size, --verbose — переопределяют значения из TSConfig, не изменяя код.  
 
 5) Где сохраняется модель

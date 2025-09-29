@@ -1,0 +1,53 @@
+1) Требования
+— Установить: pip install scikit-learn pandas numpy для обучения IsolationForest, сохранения/загрузки модели и детекции аномалий.  
+— Python‑скрипты используют argparse для CLI, что позволяет задавать параметры обучения из консоли.  
+
+2) Файлы проекта
+— anomaly_model.py: логика признаков, конфиг ADConfig, обучение IsolationForest, сохранение/загрузка артефактов model_if.pkl/meta.json.  
+— train_anomaly.py: CLI для обучения из структуры данных и записи артефактов в указанный каталог с помощью pickle.  
+— streaming_anomaly_service.py: сервис со StreamingAnomalyDetector и AnomalyService, метод process_message(msg, K) для онлайн‑детекции аномалий.  
+
+3) Подготовка данных
+— convert_data.py читает структуру папок с физиологическими данными (hypoxia/regular -> group_id -> bpm/uterus -> CSV файлы), объединяет их в единый DataFrame с колонками: timestamp, group_id, sequence_id, bpm, uterus, target.  
+— timestamp уже в секундах от эпохи после merge_physiological_data, дополнительного преобразования не требуется.  
+— Значения group_id гарантируют раздельность пациентов в train/valid через GroupShuffleSplit при обучении.  
+
+4) Обучение (CLI)
+— Команда: python train_anomaly.py --input_csv /path/to/data_directory --out_dir artifacts --n_estimators 300 — обучит IsolationForest и валидирует по группам (group_id).  
+— Параметр --input_csv ожидает путь к папке с данными (содержащей hypoxia/regular подпапки), а не к CSV файлу.  
+— Дополнительные параметры: --n_estimators, --max_samples, --contamination, --max_features, --val_size, --random_state, --n_jobs — переопределяют значения из ADConfig, не изменяя код.  
+
+5) Где сохраняется модель
+— После успешного обучения в каталоге --out_dir появятся: model_if.pkl (IsolationForest) и meta.json (конфиг и список feature_cols), сохранённые через pickle и JSON‑дамп.  
+— Эти артефакты используются инференс‑сервисом через pickle.load и чтение meta.json для консистентного порядка признаков на predict.  
+
+6) Стриминг: инициализация сервиса
+— В приложении создать сервис: from streaming_anomaly_service import AnomalyService; svc = AnomalyService("artifacts") — «artifacts» это путь к папке с model_if.pkl/meta.json.  
+— Опционально можно передать external_forecast_fn для использования внешней функции прогнозирования вместо простого продления последних значений.  
+— Сервис готов принимать сообщения и вести состояние по каждому (group_id, sequence_id) до накопления min max_lag точек, необходимых для старта детекции.  
+
+7) Формат входящего сообщения
+— msg = {"timestamp": <число секунд от эпохи или ISO‑строка>, "bpm": float, "uterus": float, "group_id": <str|int>, "sequence_id": <str|int>} — timestamp приводится к секундам внутри сервиса.  
+— Для ISO‑строк время переводится через pandas.to_datetime(...).value/1e9, что обеспечивает единый формат времени для расчёта лагов.  
+
+8) Вызов онлайн‑детекции аномалий
+— На каждое сообщение: out = svc.process_message(msg, horizon) — horizon это горизонт детекции в шагах, метод обновит буферы и вернёт результат при готовности.  
+— Ответ: {"ready": bool, "forecast": List[Dict], "needed": int}; когда ready=True, forecast — это список из horizon будущих точек с полями timestamp, group_id, sequence_id, anomaly_flag, anomaly_score и h.  
+
+9) Когда начинается детекция
+— Для каждого ряда сервис накапливает минимум max_lag исторических точек, после чего переходит к регулярным обновлениям update_one+forecast при приходе новых сообщений.  
+— До прогрева поле "needed" сообщает, сколько точек ещё требуется накопить для старта детекции по данному (group_id, sequence_id).  
+
+10) Принцип детекции аномалий
+— IsolationForest обучается только на тренировочных данных и определяет "нормальное" поведение.  
+— Для детекции на horizon шагов строятся признаки на основе истории + прогнозированных значений (внешняя функция или продление последних).  
+— Модель возвращает anomaly_flag (-1 для аномалии, +1 для нормы) и anomaly_score (чем меньше, тем более аномально).  
+
+11) Интеграция с прогнозированием
+— StreamingAnomalyDetector принимает external_forecast_fn: Callable[[List[float], List[float], int], Tuple[List[float], List[float]]]  
+— Эта функция должна принимать историю bpm и uterus и возвращать прогнозы на horizon шагов для более точной детекции будущих аномалий.  
+— Если external_forecast_fn не предоставлена, используется простое продление последних значений.  
+
+12) Смена версии модели
+— Переобучить модель новой командой train_anomaly.py на свежих данных и сохранить в новый каталог, например artifacts_v2.  
+— Запустить сервис с новым путём: AnomalyService("artifacts_v2") или переключить путь при деплое, обеспечив атомарную смену модели.
