@@ -26,12 +26,13 @@
 — Сервис готов принимать сообщения и вести состояние по каждому (group_id, sequence_id) до накопления min max_lag точек, необходимых для старта прогноза.  
 
 7) Формат входящего сообщения [web:59]
-— msg = {"timestamp": <число секунд от эпохи или ISO‑строка>, "bpm": float, "uterus": float, "group_id": <str|int>, "sequence_id": <str|int>} — timestamp приводится к секундам внутри сервиса.  
+— msg = "timestamp,bpm,uterus,group_id,sequence_id" — строка из 5 значений, разделённых запятыми.  
+— timestamp может быть числом секунд от эпохи или ISO‑строкой, приводится к секундам внутри сервиса.  
 — Для ISO‑строк время переводится через pandas.to_datetime(...).value/1e9, что обеспечивает единый формат времени для расчёта лагов.  
 
 8) Вызов онлайн‑прогноза [web:82]
 — На каждое сообщение: out = svc.process_message(msg, K) — K это горизонт прогноза в шагах, метод обновит буферы и вернёт прогноз при готовности.  
-— Ответ: {"ready": bool, "forecast": List[Dict], "needed": int}; когда ready=True, forecast — это список из K будущих точек с полями timestamp, group_id, sequence_id, bpm, uterus и h.  
+— Ответ в строковом формате: "ready:bool,forecast:data,needed:int"; когда ready=true, forecast содержит прогнозы, разделённые ';': timestamp,group_id,sequence_id,bpm,uterus,h.  
 
 9) Когда начинается прогноз [web:82]
 — Для каждого ряда сервис накапливает минимум max_lag исторических точек, после чего переходит к регулярным обновлениям update_one+forecast при приходе новых сообщений.  
@@ -47,12 +48,23 @@
 
 12) Пример использования
 # svc = ForecastService(model_dir="artifacts")
-# msg = {"timestamp": 1609459200, "bpm": 85.5, "uterus": 12.3, "group_id": "patient_1", "sequence_id": "session_1"}
+# msg = "1609459200,85.5,12.3,patient_1,session_1"
 # K = 5  # прогноз на 5 шагов вперёд
 # out = svc.process_message(msg, K)
-# if out["ready"]:
-#     forecast = out["forecast"]
-#     for pred in forecast:
-#         print(f"Step {pred['h']}: timestamp={pred['timestamp']}, bpm={pred['bpm']:.2f}, uterus={pred['uterus']:.2f}")
+# # Парсинг ответа: "ready:true,forecast:ts1,gid,sid,bpm1,ut1,1;ts2,gid,sid,bpm2,ut2,2;...,needed:0"
+# parts = out.split(',')
+# if parts[0] == "ready:true":
+#     forecast_data = parts[1].split(':')[1]  # извлекаем forecast данные
+#     predictions = forecast_data.split(';')  # разделяем по прогнозам
+#     for pred_str in predictions:
+#         if pred_str:
+#             pred_values = pred_str.split(',')
+#             step = pred_values[5]
+#             bpm_pred = pred_values[3]
+#             uterus_pred = pred_values[4]
+#             print(f"Step {step}: bpm={bpm_pred}, uterus={uterus_pred}")
 # else:
-#     print(f"Need {out['needed']} more points before forecasting can start")  
+#     # Парсим needed из ответа
+#     needed_part = [p for p in out.split(',') if p.startswith('needed:')][0]
+#     needed = needed_part.split(':')[1]
+#     print(f"Need {needed} more points before forecasting can start")  

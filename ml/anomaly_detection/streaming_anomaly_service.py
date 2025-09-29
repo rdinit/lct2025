@@ -95,15 +95,11 @@ class StreamingAnomalyDetector:
         b1 = list(self.buffers[self.meta.target_cols[0]])
         b2 = list(self.buffers[self.meta.target_cols[1]])
         
-        # Построить признаки для текущей точки
         feat = self._feature_row(b1, b2)
         X = pd.DataFrame([feat], columns=self.meta.feature_cols).astype(np.float32)
         
-        # Предсказание: -1 для аномалии, +1 для нормы
         y_pred = self.model.predict(X)[0]
-        anomaly_flag = 1 if y_pred == -1 else 0  # Конвертируем в 0/1
-        
-        # Скор аномальности (чем меньше, тем более аномально)
+        anomaly_flag = 1 if y_pred == -1 else 0
         anomaly_score = float(self.model.decision_function(X)[0])
         
         return {
@@ -112,8 +108,8 @@ class StreamingAnomalyDetector:
             self.meta.seq_col: self.sequence_id,
             "bpm": b1[-1],
             "uterus": b2[-1],
-            "bpm_anomaly": anomaly_flag,  # Флаг аномалии для bpm
-            "uterus_anomaly": anomaly_flag,  # Флаг аномалии для uterus  
+            "bpm_anomaly": anomaly_flag,
+            "uterus_anomaly": anomaly_flag,
             "anomaly_score": anomaly_score
         }
 
@@ -132,10 +128,25 @@ class AnomalyService:
             self._states[key] = st
         return st
 
-    def process_message(self, msg: Dict) -> Dict:
-        ts = StreamingAnomalyDetector._ts_to_sec(msg["timestamp"])
-        bpm = float(msg["bpm"]); ut = float(msg["uterus"])
-        gid = str(msg["group_id"]); sid = str(msg["sequence_id"])
+    def _detection_to_string(self, detection: Dict) -> str:
+        # timestamp,group_id,sequence_id,bpm,uterus,bpm_anomaly,uterus_anomaly,anomaly_score
+        return f"{detection[self.template.meta.time_col]},{detection[self.template.meta.group_col]},{detection[self.template.meta.seq_col]},{detection['bpm']},{detection['uterus']},{detection['bpm_anomaly']},{detection['uterus_anomaly']},{detection['anomaly_score']}"
+
+    def process_message(self, msg: str) -> str:
+        # timestamp,bpm,uterus,group_id,sequence_id
+        parts = msg.strip().split(',')
+        if len(parts) != 5:
+            return f"ready:false,detection:,needed:0,error:Invalid input format - expected 5 comma-separated values, got {len(parts)}"
+        
+        try:
+            ts = StreamingAnomalyDetector._ts_to_sec(parts[0])
+            bpm = float(parts[1])
+            ut = float(parts[2])
+            gid = str(parts[3])
+            sid = str(parts[4])
+        except (ValueError, IndexError) as e:
+            return f"ready:false,detection:,needed:0,error:Failed to parse values - {str(e)}"
+        
         st = self._get_or_create(gid, sid)
         det: StreamingAnomalyDetector = st["det"]
 
@@ -144,8 +155,10 @@ class AnomalyService:
                                det.meta.target_cols[0]: bpm, det.meta.target_cols[1]: ut})
             if len(st["hist"]) >= self.max_lag:
                 det.warm_start(pd.DataFrame(st["hist"]))
-            return {"ready": det._ready(), "detection": {}, "needed": max(0, self.max_lag - len(st["hist"]))}
+            needed = max(0, self.max_lag - len(st["hist"]))
+            return f"ready:{str(det._ready()).lower()},detection:,needed:{needed}"
 
         det.update_one(ts, bpm, ut, gid, sid)
         detection = det.detect_anomaly()
-        return {"ready": True, "detection": detection, "needed": 0}
+        detection_str = self._detection_to_string(detection)
+        return f"ready:true,detection:{detection_str},needed:0"

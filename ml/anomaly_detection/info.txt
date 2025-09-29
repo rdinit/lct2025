@@ -29,12 +29,13 @@
 — Сервис готов принимать сообщения и вести состояние по каждому (group_id, sequence_id) до накопления min max_lag точек, необходимых для старта детекции.  
 
 7) Формат входящего сообщения
-— msg = {"timestamp": <число секунд от эпохи или ISO‑строка>, "bpm": float, "uterus": float, "group_id": <str|int>, "sequence_id": <str|int>} — timestamp приводится к секундам внутри сервиса.  
+— msg = "timestamp,bpm,uterus,group_id,sequence_id" — строка из 5 значений, разделённых запятыми.  
+— timestamp может быть числом секунд от эпохи или ISO‑строкой, приводится к секундам внутри сервиса.  
 — Для ISO‑строк время переводится через pandas.to_datetime(...).value/1e9, что обеспечивает единый формат времени для расчёта лагов.  
 
 8) Вызов онлайн‑детекции аномалий
 — На каждое сообщение: out = svc.process_message(msg) — метод обновит буферы и вернёт результат при готовности.  
-— Ответ: {"ready": bool, "detection": Dict, "needed": int}; когда ready=True, detection — это словарь с полями timestamp, group_id, sequence_id, bpm, uterus, bpm_anomaly, uterus_anomaly, anomaly_score.  
+— Ответ в строковом формате: "ready:bool,detection:data,needed:int"; когда ready=true, detection содержит строку формата: timestamp,group_id,sequence_id,bpm,uterus,bpm_anomaly,uterus_anomaly,anomaly_score.  
 
 9) Когда начинается детекция
 — Для каждого ряда сервис накапливает минимум max_lag исторических точек, после чего переходит к регулярным обновлениям update_one+detect_anomaly при приходе новых сообщений.  
@@ -51,9 +52,12 @@
 
 12) Пример использования
 # svc = AnomalyService(model_dir="artifacts")
-# msg = {"timestamp": 1609459200, "bpm": 85.5, "uterus": 12.3, "group_id": "patient_1", "sequence_id": "session_1"}
+# msg = "1609459200,85.5,12.3,patient_1,session_1"
 # out = svc.process_message(msg)
-# if out["ready"]: 
-#     detection = out["detection"]
-#     print(f"BPM anomaly: {detection['bpm_anomaly']}, Uterus anomaly: {detection['uterus_anomaly']}")
-#     print(f"Anomaly score: {detection['anomaly_score']}")
+# # Парсинг ответа: "ready:true,detection:1609459200,patient_1,session_1,85.5,12.3,0,0,-0.123,needed:0"
+# parts = out.split(',')
+# if parts[0] == "ready:true":
+#     detection_data = parts[1].split(':')[1] + ',' + ','.join(parts[2:])
+#     values = detection_data.split(',')
+#     print(f"BPM anomaly: {values[5]}, Uterus anomaly: {values[6]}")
+#     print(f"Anomaly score: {values[7]}")
