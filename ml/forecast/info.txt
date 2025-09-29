@@ -44,3 +44,15 @@
 11) Смена версии модели [web:22]
 — Переобучить модель новой командой train.py на свежем CSV и сохранить в новый каталог, например artifacts_v2, чтобы зафиксировать новую версию.  
 — Запустить сервис с новым путём: ForecastService("artifacts_v2") или переключить путь при деплое, обеспечив атомарную смену модели.  
+
+12) Пример использования
+# svc = ForecastService(model_dir="artifacts")
+# msg = {"timestamp": 1609459200, "bpm": 85.5, "uterus": 12.3, "group_id": "patient_1", "sequence_id": "session_1"}
+# K = 5  # прогноз на 5 шагов вперёд
+# out = svc.process_message(msg, K)
+# if out["ready"]:
+#     forecast = out["forecast"]
+#     for pred in forecast:
+#         print(f"Step {pred['h']}: timestamp={pred['timestamp']}, bpm={pred['bpm']:.2f}, uterus={pred['uterus']:.2f}")
+# else:
+#     print(f"Need {out['needed']} more points before forecasting can start")  
