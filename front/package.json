@@ -1,0 +1,44 @@
+{
+  "name": "meta-ai-front",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@next/eslint-plugin-next": "^15.3.4",
+    "@stylistic/eslint-plugin": "^5.0.0",
+    "@svgr/webpack": "^8.1.0",
+    "@typescript-eslint/parser": "^8.35.0",
+    "axios": "^1.12.2",
+    "clsx": "^2.1.1",
+    "eslint-plugin-better-tailwindcss": "^3.4.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "next": "15.3.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript-eslint": "^8.35.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9.29.0",
+    "eslint-config-next": "15.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}
