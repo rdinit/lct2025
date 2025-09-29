@@ -1,0 +1,81 @@
+1) Требования
+— Установить: pip install catboost pandas numpy scikit-learn antropy scipy для обучения, сохранения/загрузки модели и классификации временных рядов.  
+— Python‑скрипты используют argparse для CLI, что позволяет задавать параметры обучения из консоли.  
+
+2) Файлы проекта
+— ts_model_clf.py: логика признаков временных рядов, конфиг CLFConfig, обучение CatBoost классификатора, сохранение/загрузка артефактов model.cbm/meta.json/label_encoder.pkl.  
+— train_clf.py: CLI для обучения из структуры данных и записи артефактов в указанный каталог с помощью CatBoost save_model и pickle.  
+— streaming_service_clf.py: сервис со StreamingTimeSeriesClassifier и ClassificationService, метод process_message(msg) для онлайн‑классификации временных рядов.  
+
+3) Подготовка данных
+— convert_data.py читает структуру папок с физиологическими данными (hypoxia/regular -> group_id -> bpm/uterus -> CSV файлы), объединяет их в единый DataFrame с колонками: timestamp, group_id, sequence_id, bpm, uterus, target.  
+— timestamp уже в секундах от эпохи после merge_physiological_data, дополнительного преобразования не требуется.  
+— Значения group_id гарантируют раздельность пациентов в train/valid через StratifiedGroupKFold при обучении с учетом классов.  
+
+4) Обучение (CLI)
+— Команда: python train_clf.py --input_csv /path/to/data_directory --out_dir artifacts --task_type CPU — обучит классификатор и валидирует по группам (group_id) с кросс‑валидацией.  
+— Параметр --input_csv ожидает путь к папке с данными (содержащей hypoxia/regular подпапки), а не к CSV файлу.  
+— Дополнительные параметры: --iterations, --learning_rate, --depth, --val_size, --n_splits, --verbose, --cv_only — переопределяют значения из CLFConfig, не изменяя код.  
+— Опция --cv_only запускает только кросс‑валидацию без сохранения финальной модели.  
+
+5) Где сохраняется модель
+— После успешного обучения в каталоге --out_dir появятся: model.cbm (CatBoost классификатор), label_encoder.pkl (энкодер меток классов) и meta.json (конфиг, список feature_cols, классы), сохранённые через save_model, pickle и JSON‑дамп.  
+— Эти артефакты используются инференс‑сервисом через load_model, pickle.load и чтение meta.json для консистентного порядка признаков и правильного декодирования классов.  
+
+6) Стриминг: инициализация сервиса
+— В приложении создать сервис: from streaming_service_clf import ClassificationService; svc = ClassificationService("artifacts") — «artifacts» это путь к папке с model.cbm/label_encoder.pkl/meta.json.  
+— Сервис готов принимать сообщения и вести состояние по каждому (group_id, sequence_id) до накопления минимального размера окна точек, необходимых для классификации временного ряда.  
+
+7) Формат входящего сообщения
+— msg = "timestamp,bpm,uterus,group_id,sequence_id" — строка из 5 значений, разделённых запятыми.  
+— timestamp может быть числом секунд от эпохи или ISO‑строкой, приводится к секундам внутри сервиса.  
+— Для ISO‑строк время переводится через pandas.to_datetime(...).value/1e9, что обеспечивает единый формат времени для расчёта признаков временных рядов.  
+
+8) Вызов онлайн‑классификации
+— На каждое сообщение: out = svc.process_message(msg) — метод обновит буферы и вернёт классификацию при готовности.  
+— Ответ в строковом формате: "ready:bool,classification:data,needed:int,error:str"; когда ready=true, classification содержит строку формата: timestamp,group_id,sequence_id,bpm,uterus,predicted_class,confidence,prob_class0,prob_class1.  
+
+9) Когда начинается классификация
+— Для каждого ряда сервис накапливает минимум max_window исторических точек (максимальное окно из roll_windows), после чего переходит к регулярным обновлениям update_one+classify_timeseries при приходе новых сообщений.  
+— До прогрева поле "needed" сообщает, сколько точек ещё требуется накопить для старта классификации по данному (group_id, sequence_id).  
+
+10) Принцип классификации временных рядов
+— Классификатор анализирует ВЕСЬ временной ряд (не отдельные точки), извлекая сложные признаки: лаги, скользящие окна, статистики, энтропию, фрактальную размерность, количество пиков.  
+— Модель возвращает predicted_class (например, "hypoxia" или "regular"), confidence (уверенность) и вероятности всех классов (prob_class0, prob_class1, ...).  
+— Поддерживается как бинарная, так и многоклассовая классификация с автоматическим определением типа.  
+
+11) Извлечение признаков из временных рядов
+— Базовые: разности, кумулятивные суммы.  
+— Скользящие окна: mean, std, min, max, квантили, отклонения от статистик.  
+— Продвинутые: SVD энтропия (antropy), фрактальная размерность Петросяна, количество пиков (scipy.signal).  
+— Агрегация по последовательности: mean, std, min, max, квантили 10%, 50%, 90% от всех признаков.  
+
+12) Смена версии модели
+— Переобучить модель новой командой train_clf.py на свежих данных и сохранить в новый каталог, например artifacts_v2.  
+— Запустить сервис с новым путём: ClassificationService("artifacts_v2") или переключить путь при деплое, обеспечив атомарную смену модели.  
+
+13) Пример использования
+# svc = ClassificationService(model_dir="artifacts")
+# msg = "1609459200,85.5,12.3,patient_1,session_1"
+# out = svc.process_message(msg)
+# # Парсинг ответа: "ready:true,classification:1609459200,patient_1,session_1,85.5,12.3,hypoxia,0.8534,0.1466,0.8534,needed:0,error:"
+# parts = out.split(',')
+# if parts[0] == "ready:true":
+#     classification_data = parts[1].split(':')[1] + ',' + ','.join(parts[2:])
+#     values = classification_data.split(',')
+#     predicted_class = values[5]
+#     confidence = float(values[6])
+#     prob_regular = float(values[7]) if len(values) > 7 else 0.0
+#     prob_hypoxia = float(values[8]) if len(values) > 8 else 0.0
+#     print(f"Predicted class: {predicted_class} (confidence: {confidence:.4f})")
+#     print(f"Probabilities - Regular: {prob_regular:.4f}, Hypoxia: {prob_hypoxia:.4f}")
+# else:
+#     # Парсим needed и error из ответа
+#     needed_part = [p for p in out.split(',') if p.startswith('needed:')]
+#     error_part = [p for p in out.split(',') if p.startswith('error:')]
+#     needed = needed_part[0].split(':')[1] if needed_part else "0"
+#     error = error_part[0].split(':')[1] if error_part else ""
+#     if error:
+#         print(f"Error: {error}")
+#     else:
+#         print(f"Need {needed} more points before classification can start")
