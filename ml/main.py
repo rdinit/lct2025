@@ -2,7 +2,6 @@ from forecast.streaming_service import ForecastService
 
 from anomaly_detection.streaming_anomaly_service import AnomalyService
 
-from classification.streaming_service_clf import ClassificationService
 
 svc = ForecastService(model_dir="forecast/artifacts")
 
@@ -11,8 +10,8 @@ det = AnomalyService(model_dir="anomaly_detection/artifacts")
 msg = ""
 
 for i in range(25):
-    det.process_message("1609459200,85.5,12.3")
-    msg += "1609459200,85.5,12.3\n"
+    det.process_message("0,85.5,12.3")
+    msg += "0,85.5,12.3\n"
 
 
 K = 5 # прогноз на 5 шагов вперёд
@@ -26,7 +25,7 @@ if out["ready"] == True:
 else:
     print(f"Need {out["needed"]} more points before forecasting can start")  
 
-out = det.process_message("1609459200,85.5,12.3")
+out = det.process_message("0,85.5,12.3")
 
 if out["ready"]:
      # timestamp,group_id,sequence_id,bpm,uterus,bpm_anomaly,uterus_anomaly,anomaly_score
