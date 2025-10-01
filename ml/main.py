@@ -1,10 +1,17 @@
 from forecast.streaming_service import ForecastService
 
+from anomaly_detection.streaming_anomaly_service import AnomalyService
+
+
+
 svc = ForecastService(model_dir="forecast/artifacts")
+
+det = AnomalyService(model_dir="anomaly_detection/artifacts")
 
 msg = ""
 
-for i in range(15):
+for i in range(25):
+    det.process_message("1609459200,85.5,12.3")
     msg += "1609459200,85.5,12.3\n"
 
 
@@ -18,3 +25,8 @@ if out["ready"] == True:
     pass
 else:
     print(f"Need {out["needed"]} more points before forecasting can start")  
+
+out = det.process_message("1609459200,85.5,12.3")
+
+
+print(out)

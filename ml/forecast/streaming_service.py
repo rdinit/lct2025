@@ -141,7 +141,6 @@ class ForecastService:
         # прогнозы разделяются символом ';'
         forecast_string = ""
         for pred in forecast_list:
-            print(pred)
             forecast_string += f"{pred['timestamp']},{pred['bpm']},{pred['uterus']}\n"
         return forecast_string
 
@@ -207,8 +206,6 @@ class ForecastService:
         pred_df = sf.forecast(horizon=horizon)
         forecast_list = pred_df.to_dict(orient="records")
 
-
-        print(forecast_list)
         forecast_str = self._forecast_to_string(forecast_list)
 
         return {
