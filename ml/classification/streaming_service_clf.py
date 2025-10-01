@@ -217,7 +217,7 @@ class ClassificationService:
                     classifier.meta.target_cols[1]: col["ut"]
                 })
 
-                if len(state["history"]) >= self.max_lag:
+                if len(state["history"]) >= self.max_window:
                     hist_df = pd.DataFrame(state["history"])
                     classifier.warm_start(hist_df)
                     ready_i = i
@@ -228,7 +228,7 @@ class ClassificationService:
                 else:
                     data = []
             else:
-                needed = max(0, self.max_lag - len(state["history"]))
+                needed = max(0, self.max_window - len(state["history"]))
                 return {
                     "ready": False,
                     "needed": needed,
