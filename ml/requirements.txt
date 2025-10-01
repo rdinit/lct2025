@@ -6,3 +6,4 @@ pandas==2.2.3
 scipy==1.15.3
 websocket-client
 rel
+antropy==0.1.9
