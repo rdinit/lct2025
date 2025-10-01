@@ -2,7 +2,7 @@ from forecast.streaming_service import ForecastService
 
 from anomaly_detection.streaming_anomaly_service import AnomalyService
 
-
+from classification.streaming_service_clf import ClassificationService
 
 svc = ForecastService(model_dir="forecast/artifacts")
 
@@ -28,5 +28,8 @@ else:
 
 out = det.process_message("1609459200,85.5,12.3")
 
-
-print(out)
+if out["ready"]:
+     # timestamp,group_id,sequence_id,bpm,uterus,bpm_anomaly,uterus_anomaly,anomaly_score
+    print(out["detection"])
+else:
+    print(out["needed"])
