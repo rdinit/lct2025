@@ -33,11 +33,7 @@ def main():
         print("Running cross-validation...")
         results = train_classifier_cv(df, cfg)
         print(f"Cross-validation completed. Mean F1: {results.get('fold_f1', [])}")
-    else:
-        print("Running cross-validation...")
-        cv_results = train_classifier_cv(df, cfg)
-        print(f"Cross-validation completed. Mean F1: {cv_results.get('fold_f1', [])}")
-        
+    else:        
         print("Training final model...")
         model, le, meta = train_classifier(df, cfg, out_dir=args.out_dir)
         print(f"Final model saved to {args.out_dir}")

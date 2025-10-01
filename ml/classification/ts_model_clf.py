@@ -12,7 +12,9 @@ import antropy as ant
 from scipy.signal import find_peaks
 import time
 import warnings
+from scipy.signal import savgol_filter
 warnings.filterwarnings("ignore")
+
 
 EPS = 1e-12
 
@@ -29,6 +31,7 @@ class CLFConfig:
     iterations: int = 1000
     learning_rate: float = 0.03
     depth: int = 6
+    min_seq_length: int = 1000
     task_type: str = "CPU"
     verbose: int = 200
     n_splits: int = 5
@@ -110,7 +113,55 @@ def build_rolling_features_for_group(g: pd.DataFrame, ts_cols: List[str], window
             out[f"{col}__w{w}__num_peaks"] = roll.apply(_peak_count_scipy, raw=True)
     return out
 
+def kalman_1d(z: np.ndarray,
+              Q: float = 1e-5,
+              R: float = 1e-2,
+              x0: float | None = None,
+              P0: float = 1.0) -> np.ndarray:
+    n = len(z)
+    if n == 0:
+        return np.array([])
+    x_hat = np.empty(n)
+    x_est = z[0] if x0 is None else x0
+    P = P0
+    for k in range(n):
+        x_pred = x_est
+        P = P + Q
+        K = P / (P + R)
+        x_est = x_pred + K * (z[k] - x_pred)
+        P = (1.0 - K) * P
+        x_hat[k] = x_est
+    return x_hat
+
+def apply_kalman_to_series(series: pd.Series, Q: float = 1e-5, R: float = 1e-2) -> pd.Series:
+    arr = np.asarray(series, dtype=float)
+    if len(arr) == 0:
+        return series
+    filtered = kalman_1d(arr, Q=Q, R=R)
+    return pd.Series(filtered, index=series.index)
+
+def apply_savgol_to_series(series: pd.Series, window_length: int = 11, polyorder: int = 3) -> pd.Series:
+    arr = np.asarray(series, dtype=float)
+    if len(arr) < window_length:
+        return series  
+    try:
+        filtered = savgol_filter(arr, window_length=window_length, polyorder=polyorder)
+        return pd.Series(filtered, index=series.index)
+    except Exception:
+        return series 
+
 def process_single_sequence(group: pd.DataFrame, ts_cols: List[str], windows: List[int]) -> pd.Series:
+    if len(group) < CLFConfig.min_seq_length:
+        return None
+    group = group.head(CLFConfig.min_seq_length).copy()
+    
+    # for col in ts_cols:
+    #         if col in group.columns:
+    #             # Option 1: Kalman filter
+    #             # group[col] = apply_kalman_to_series(group[col], Q=1e-5, R=1e-2)
+    #             # Option 2: Savitzky-Golay (uncomment if preferred or use both)
+    #             group[col] = apply_savgol_to_series(group[col], window_length=11, polyorder=3)
+    
     step_feats = build_rolling_features_for_group(group, ts_cols=ts_cols, windows=windows)
     
     step_feats["sequence_id"] = group["sequence_id"].iloc[0]
@@ -154,7 +205,8 @@ def make_supervised(df: pd.DataFrame, cfg: CLFConfig) -> Tuple[pd.DataFrame, Lis
     seq_features_list = []
     for seq_id, group in data.groupby(cfg.seq_col, sort=False):
         seq_feat = process_single_sequence(group, list(cfg.target_cols), list(cfg.roll_windows))
-        seq_features_list.append(seq_feat)
+        if seq_feat is not None:
+            seq_features_list.append(seq_feat)
     
     seq_features = pd.DataFrame(seq_features_list).reset_index(drop=True)
     
