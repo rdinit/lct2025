@@ -155,12 +155,12 @@ def process_single_sequence(group: pd.DataFrame, ts_cols: List[str], windows: Li
         return None
     group = group.head(CLFConfig.min_seq_length).copy()
     
-    # for col in ts_cols:
-    #         if col in group.columns:
-    #             # Option 1: Kalman filter
-    #             # group[col] = apply_kalman_to_series(group[col], Q=1e-5, R=1e-2)
-    #             # Option 2: Savitzky-Golay (uncomment if preferred or use both)
-    #             group[col] = apply_savgol_to_series(group[col], window_length=11, polyorder=3)
+    for col in ts_cols:
+            if col in group.columns:
+                # Option 1: Kalman filter
+                # group[col] = apply_kalman_to_series(group[col], Q=1e-5, R=1e-2)
+                # Option 2: Savitzky-Golay (uncomment if preferred or use both)
+                group[col] = apply_savgol_to_series(group[col], window_length=11, polyorder=3)
     
     step_feats = build_rolling_features_for_group(group, ts_cols=ts_cols, windows=windows)
     
