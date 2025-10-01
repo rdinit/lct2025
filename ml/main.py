@@ -2,10 +2,15 @@ from forecast.streaming_service import ForecastService
 
 from anomaly_detection.streaming_anomaly_service import AnomalyService
 
+# from classification.streaming_service_clf import ClassificationService
+
 
 svc = ForecastService(model_dir="forecast/artifacts")
 
 det = AnomalyService(model_dir="anomaly_detection/artifacts")
+
+
+# csv = ClassificationService()
 import time
 
 def current_milli_time():

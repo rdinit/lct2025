@@ -167,9 +167,7 @@ class ClassificationService:
     
     @staticmethod
     def _ts_to_sec(ts_val) -> float:
-        if isinstance(ts_val, (int, float, np.floating, np.integer)):
-            return float(ts_val)
-        return pd.to_datetime(ts_val).value / 1e9
+        return float(ts_val)
     
     def _classification_to_string(self, classification: Dict) -> str:
         prob_values = [f"{prob:.4f}" for prob in classification["class_probabilities"].values()]
@@ -183,43 +181,71 @@ class ClassificationService:
                 f"{','.join(prob_values)}")
     
     def process_message(self, msg: str) -> str:
-        parts = msg.strip().split(',')
-        if len(parts) != 5:
-            return f"ready:false,classification:,needed:0,error:Invalid input format - expected 5 comma-separated values, got {len(parts)}"
         
-        try:
-            ts = self._ts_to_sec(parts[0])
-            bpm = float(parts[1])
-            uterus = float(parts[2])
-            group_id = str(parts[3])
-            sequence_id = str(parts[4])
-        except (ValueError, IndexError) as e:
-            return f"ready:false,classification:,needed:0,error:Failed to parse values - {str(e)}"
-        
-        state = self._get_or_create_state(group_id, sequence_id)
+        current_gid = "0"
+        current_sid = "0"
+
+        data = []
+
+        cols = msg.strip().split('\n')
+
+        for col in cols:
+            parts = col.split(',')
+            data.append({
+                "ts": self._ts_to_sec(parts[0]),
+                "bpm": float(parts[1]),
+                "ut": float(parts[2]),
+                "gid": current_gid,
+                "sid": current_sid
+
+
+            })       
+
+        state = self._get_or_create_state(current_gid, current_sid)
         classifier: StreamingTimeSeriesClassifier = state["classifier"]
         
+
         if not classifier._ready():
-            state["history"].append({
-                classifier.meta.time_col: ts,
-                classifier.meta.group_col: group_id,
-                classifier.meta.seq_col: sequence_id,
-                classifier.meta.target_cols[0]: bpm,
-                classifier.meta.target_cols[1]: uterus
-            })
+            ready_i = -1
+            for i in range(len(data)):
+                col = data[i]
+                state["history"].append({
+                    classifier.meta.time_col: col["ts"],
+                    classifier.meta.group_col: current_gid,
+                    classifier.meta.seq_col: current_sid,
+                    classifier.meta.target_cols[0]: col["bpm"],
+                    classifier.meta.target_cols[1]: col["ut"]
+                })
+
+                if len(state["history"]) >= self.max_lag:
+                    hist_df = pd.DataFrame(state["history"])
+                    classifier.warm_start(hist_df)
+                    ready_i = i
+                    break
+            if ready_i != -1:
+                if ready_i < len(data) - 1:
+                    data = data[ready_i + 1:]
+                else:
+                    data = []
+            else:
+                needed = max(0, self.max_lag - len(state["history"]))
+                return {
+                    "ready": False,
+                    "needed": needed,
+                    "classification": []
+                }
             
-            if len(state["history"]) >= self.max_window:
-                hist_df = pd.DataFrame(state["history"])
-                classifier.warm_start(hist_df)
-            
-            needed = max(0, self.max_window - len(state["history"]))
-            return f"ready:{str(classifier._ready()).lower()},classification:,needed:{needed},error:"
-        
-        classifier.update_one(ts, bpm, uterus, group_id, sequence_id)
+        for col in data:
+            classifier.update_one(col['ts'], col['bpm'], col['ut'], current_gid, current_sid)
+
         classification = classifier.classify_timeseries()
         classification_str = self._classification_to_string(classification)
         
-        return f"ready:true,classification:{classification_str},needed:0,error:"
+        return {
+            "ready": True,
+            "classification": classification_str,
+            "needed": 0,
+        }
 
 # service = ClassificationService(model_dir="artifacts")
 # response = service.process_message("1234567890,120,0.5,group1,seq1")
