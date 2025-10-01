@@ -53,8 +53,8 @@ export default function Home () {
 
     return (
         <div className="absolute h-[100dvh] w-[100vw]">
-            <PlotGraph plotArray={plotData} className="h-[50%] w-full" dotColor="#e69710" lineColor="#e69710" axisColor="#e69710"/>
-            <PlotGraph plotArray={plotData} className="h-[50%] w-full"/>
+            <PlotGraph plotArray={plotData} className="h-[50%] w-full" dotColor="#e69710" lineColor="#e69710" axisColor="#e69710" title="BPM"/>
+            <PlotGraph plotArray={plotData} className="h-[50%] w-full" title="UTERUS"/>
         </div>
     );
 }

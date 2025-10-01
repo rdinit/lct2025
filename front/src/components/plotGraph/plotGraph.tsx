@@ -12,9 +12,10 @@ export type PlotGraphProps = {
     lineColor?: string
     axisColor?: string;
     dotColor?: string;
+    title: string
 };
 export default function PlotGraph (props: PlotGraphProps) {
-    const { plotArray, lineColor, axisColor, dotColor } = props;
+    const { plotArray, lineColor, axisColor, dotColor, title } = props;
 
 
     useEffect(() => {
@@ -143,14 +144,14 @@ export default function PlotGraph (props: PlotGraphProps) {
         ctx.fillStyle = "#000";
         ctx.font = "16px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("Sensor 0 - Real-time Data", canvas.width / 2, 20);
+        ctx.fillText(`Sensor ${title} - Real-time Data`, canvas.width / 2, 20);
 
         const lastPoint = plotArray[plotArray.length - 1];
         ctx.fillStyle = "#d9534f";
         ctx.font = "14px Arial";
         ctx.textAlign = "left";
         ctx.fillText(`Current: ${lastPoint.value.toFixed(4)}`, padding, 30);
-    }, [axisColor, dotColor, lineColor, plotArray]);
+    }, [axisColor, dotColor, lineColor, plotArray, title]);
 
     const sensorChartRef = useRef<HTMLCanvasElement>(null!);
 
