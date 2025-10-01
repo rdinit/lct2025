@@ -39,7 +39,7 @@ if out["ready"] == True:
     print(len(out["forecast"].split('\n')))
     pass
 else:
-    print(f"Need {out["needed"]} more points before forecasting can start")  
+    print(f"Need {out['needed']} more points before forecasting can start")  
 
 
 now = current_milli_time()
