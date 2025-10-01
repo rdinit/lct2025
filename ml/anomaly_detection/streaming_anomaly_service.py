@@ -39,9 +39,7 @@ class StreamingAnomalyDetector:
 
     @staticmethod
     def _ts_to_sec(ts_val) -> float:
-        if isinstance(ts_val, (int, float, np.floating, np.integer)):
-            return float(ts_val)
-        return pd.to_datetime(ts_val).value / 1e9
+        return float(ts_val)
 
     def warm_start(self, history_df: pd.DataFrame):
         tcol = self.meta.time_col
@@ -135,15 +133,16 @@ class AnomalyService:
     def process_message(self, msg: str) -> str:
         # timestamp,bpm,uterus,group_id,sequence_id
         parts = msg.strip().split(',')
-        if len(parts) != 5:
-            return f"ready:false,detection:,needed:0,error:Invalid input format - expected 5 comma-separated values, got {len(parts)}"
-        
+
+
+        current_sid = "0"
+        current_gid = "0"
         try:
             ts = StreamingAnomalyDetector._ts_to_sec(parts[0])
             bpm = float(parts[1])
             ut = float(parts[2])
-            gid = str(parts[3])
-            sid = str(parts[4])
+            gid = current_gid = "0"
+            sid = current_sid
         except (ValueError, IndexError) as e:
             return f"ready:false,detection:,needed:0,error:Failed to parse values - {str(e)}"
         
@@ -156,9 +155,17 @@ class AnomalyService:
             if len(st["hist"]) >= self.max_lag:
                 det.warm_start(pd.DataFrame(st["hist"]))
             needed = max(0, self.max_lag - len(st["hist"]))
-            return f"ready:{str(det._ready()).lower()},detection:,needed:{needed}"
+            return {
+                "ready": False,
+                "detection": [],
+                "needed": needed
+            }
 
         det.update_one(ts, bpm, ut, gid, sid)
         detection = det.detect_anomaly()
         detection_str = self._detection_to_string(detection)
-        return f"ready:true,detection:{detection_str},needed:0"
+        return {
+            "ready": True,
+            "detection": detection_str,
+            "needed": 0
+        }

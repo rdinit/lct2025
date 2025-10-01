@@ -134,51 +134,85 @@ class ForecastService:
 
     @staticmethod
     def _ts_to_sec(ts_val) -> float:
-        if isinstance(ts_val, (int, float, np.floating, np.integer)):
-            return float(ts_val)
-        return pd.to_datetime(ts_val).value / 1e9
+        return float(ts_val)
 
     def _forecast_to_string(self, forecast_list: List[Dict]) -> str:
         # каждый прогноз: timestamp,group_id,sequence_id,bpm,uterus,h
         # прогнозы разделяются символом ';'
-        forecast_strings = []
+        forecast_string = ""
         for pred in forecast_list:
-            pred_str = f"{pred['timestamp']},{pred['group_id']},{pred['sequence_id']},{pred['bpm']},{pred['uterus']},{pred['h']}"
-            forecast_strings.append(pred_str)
-        return ';'.join(forecast_strings)
+            forecast_string += f"{pred['timestamp']},{pred['bpm']},{pred['uterus']}\n"
+        return forecast_string
 
     def process_message(self, msg: str, horizon: int) -> str:
         # timestamp,bpm,uterus,group_id,sequence_id
-        parts = msg.strip().split(',')
-        if len(parts) != 5:
-            return f"ready:false,forecast:,needed:0,error:Invalid input format - expected 5 comma-separated values, got {len(parts)}"
-        
-        try:
-            ts = self._ts_to_sec(parts[0])
-            bpm = float(parts[1])
-            ut = float(parts[2])
-            gid = str(parts[3])
-            sid = str(parts[4])
-        except (ValueError, IndexError) as e:
-            return f"ready:false,forecast:,needed:0,error:Failed to parse values - {str(e)}"
-        
-        st = self._get_or_create_state(gid, sid)
+
+        current_gid = "0"
+        current_sid = "0"
+
+        data = []
+
+        cols = msg.strip().split('\n')
+
+        for col in cols:
+            parts = col.split(',')
+            data.append({
+                "ts": self._ts_to_sec(parts[0]),
+                "bpm": float(parts[1]),
+                "ut": float(parts[2]),
+                "gid": current_gid,
+                "sid": current_sid
+            })       
+
+
+        st = self._get_or_create_state(current_gid, current_sid)
         sf: StreamingForecaster = st["sf"]
 
         if not sf._ready():
-            st["hist"].append({sf.meta.time_col: ts, "bpm": bpm, "uterus": ut,
-                               sf.meta.group_col: gid, sf.meta.seq_col: sid})
-            if len(st["hist"]) >= self.max_lag:
-                hist_df = pd.DataFrame(st["hist"])
-                sf.warm_start(hist_df)
-            needed = max(0, self.max_lag - len(st["hist"]))
-            return f"ready:{str(sf._ready()).lower()},forecast:,needed:{needed}"
+            ready_i = -1
+            for i in range(len(data)):
+                col = data[i]
+                st["hist"].append({
+                    sf.meta.time_col: col["ts"], 
+                    "bpm": col["bpm"], 
+                    "uterus": col["ut"],
+                    sf.meta.group_col: current_gid, 
+                    sf.meta.seq_col: current_sid
+                    }
+                )
+                if len(st["hist"]) >= self.max_lag:
+                    hist_df = pd.DataFrame(st["hist"])
+                    sf.warm_start(hist_df)
+                    ready_i = i
+                    break
+            if ready_i != -1:
+                if ready_i < len(data) - 1:
+                    data = data[ready_i + 1:]
+                else:
+                    data = []
+            else:
+                needed = max(0, self.max_lag - len(st["hist"]))
+                return {
+                    "ready": False,
+                    "needed": needed,
+                    "forecast": []
+                }
+        
+        
+        for col in data:
+            sf.update_one(ts_sec=col["ts"], bpm=col["bpm"], uterus=col["ut"], group_id=current_gid, sequence_id=current_sid)
 
-        sf.update_one(ts_sec=ts, bpm=bpm, uterus=ut, group_id=gid, sequence_id=sid)
+
         pred_df = sf.forecast(horizon=horizon)
         forecast_list = pred_df.to_dict(orient="records")
+
         forecast_str = self._forecast_to_string(forecast_list)
-        return f"ready:true,forecast:{forecast_str},needed:0"
+
+        return {
+            "ready": True,
+            "needed": 0,
+            "forecast": forecast_str
+        }
 
 # svc = ForecastService(model_dir="artifacts")
 # out = svc.process_message(msg, horizon=K)
