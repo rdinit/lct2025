@@ -189,6 +189,8 @@ class ForecastService:
             if ready_i != -1:
                 if ready_i < len(data) - 1:
                     data = data[ready_i + 1:]
+                else:
+                    data = []
             else:
                 needed = max(0, self.max_lag - len(st["hist"]))
                 return {
