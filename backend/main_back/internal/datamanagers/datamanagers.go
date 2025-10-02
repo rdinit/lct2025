@@ -95,7 +95,7 @@ func (m *MLHandler) RemoveOutputConnection(c *websocket.Conn) {
 }
 
 func NewMLHandler(overlap int, length int) *MLHandler {
-	return &MLHandler{overlap, length, 0, nil, make([]*websocket.Conn, 0)}
+	return &MLHandler{overlap, length, -1, nil, make([]*websocket.Conn, 0)}
 }
 
 func (m *MLHandler) AskML(messages []string) {
@@ -156,7 +156,7 @@ func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
 	// merge data if both have same timestamp
 
 	for len(d.bpm_data) > 0 && len(d.uterus_data) > 0 {
-		fmt.Println(d.bpm_data[0].Time, d.uterus_data[0].Time)
+
 		if math.Abs(d.bpm_data[0].Time-d.uterus_data[0].Time) < d.eps {
 			d.merged_data = append(d.merged_data, MergedPoint{d.bpm_data[0].Time, d.bpm_data[0].Value, d.uterus_data[0].Value})
 			d.bpm_data = d.bpm_data[1:]
@@ -172,7 +172,7 @@ func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
 		}
 		d.merged_data_str = append(d.merged_data_str, d.mergedPointToCSV(d.merged_data[len(d.merged_data)-1]))
 		d.points_count++
-		fmt.Println(d.merged_data_str[len(d.merged_data_str)-1])
+
 	}
 
 	bplen := len(d.bpm_data)
@@ -196,6 +196,7 @@ func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
 
 	for _, ml_handler := range d.Ml_handlers {
 		if ml_handler.last_point-ml_handler.overlap+ml_handler.lenght <= int(d.points_count) {
+			fmt.Println("points", ml_handler.last_point, ml_handler.overlap, ml_handler.lenght, d.points_count)
 			ml_handler.last_point = d.points_count
 			ml_handler.AskML(d.merged_data_str[ml_handler.last_point-ml_handler.overlap : ml_handler.last_point-ml_handler.overlap+ml_handler.lenght])
 		}
