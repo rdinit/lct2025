@@ -91,7 +91,9 @@ func new_reader_handler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func get_forecast_handler(w http.ResponseWriter, r *http.Request) {
+func back2front_handler(w http.ResponseWriter, r *http.Request) {
+	model := r.URL.Query().Get("model")
+
 	c, err := upgrader.Upgrade(w, r, nil)
 
 	if err != nil {
@@ -99,17 +101,25 @@ func get_forecast_handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, ok := dataMerger.Ml_handlers[model]
+	if !ok {
+		log.Println("model not found:", model)
+		return
+	}
+
 	c.SetCloseHandler(func(code int, text string) error {
-		dataMerger.Ml_handlers["forecast"].RemoveOutputConnection(c)
+		dataMerger.Ml_handlers[model].RemoveOutputConnection(c)
 		log.Println("disconnected:")
 		return nil
 	})
 
-	dataMerger.Ml_handlers["forecast"].AddOutputConnection(c)
+	dataMerger.Ml_handlers[model].AddOutputConnection(c)
 
 }
 
-func get_anomaly_handler(w http.ResponseWriter, r *http.Request) {
+func back2ml_handler(w http.ResponseWriter, r *http.Request) {
+	model := r.URL.Query().Get("model")
+
 	c, err := upgrader.Upgrade(w, r, nil)
 
 	if err != nil {
@@ -117,76 +127,17 @@ func get_anomaly_handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.SetCloseHandler(func(code int, text string) error {
-		dataMerger.Ml_handlers["anomaly"].RemoveOutputConnection(c)
-		log.Println("disconnected:")
-		return nil
-	})
-
-	dataMerger.Ml_handlers["anomaly"].AddOutputConnection(c)
-}
-func get_classify_handler(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-
-	if err != nil {
-		log.Println("upgrade error:", err)
+	_, ok := dataMerger.Ml_handlers[model]
+	if !ok {
+		log.Println("model not found:", model)
 		return
 	}
-
 	c.SetCloseHandler(func(code int, text string) error {
-		dataMerger.Ml_handlers["classify"].RemoveOutputConnection(c)
+		dataMerger.Ml_handlers[model].DisconnectML()
 		log.Println("disconnected:")
 		return nil
 	})
-
-	dataMerger.Ml_handlers["classify"].AddOutputConnection(c)
-}
-
-func make_forecast_handler(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-
-	if err != nil {
-		log.Println("upgrade error:", err)
-		return
-	}
-
-	c.SetCloseHandler(func(code int, text string) error {
-		dataMerger.Ml_handlers["forecast"].DisconnectML()
-		log.Println("disconnected:")
-		return nil
-	})
-	dataMerger.Ml_handlers["forecast"].ConnectML(c)
-	go func() {
-		for {
-			mt, message, err := c.ReadMessage()
-			if err != nil {
-				break
-			}
-			if mt != websocket.TextMessage {
-				log.Println("no text message, closing connection")
-				//log.Println("message type: ", mt, "message: ", message, "error: ", err)
-				continue
-			}
-			//log.Println("recieved message: ", string(message))
-			dataMerger.Ml_handlers["forecast"].SendUpdate(message)
-		}
-	}()
-}
-
-func make_anomaly_handler(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-
-	if err != nil {
-		log.Println("upgrade error:", err)
-		return
-	}
-
-	c.SetCloseHandler(func(code int, text string) error {
-		dataMerger.Ml_handlers["anomaly"].DisconnectML()
-		log.Println("disconnected:")
-		return nil
-	})
-	dataMerger.Ml_handlers["anomaly"].ConnectML(c)
+	dataMerger.Ml_handlers[model].ConnectML(c)
 	go func() {
 		for {
 			mt, message, err := c.ReadMessage()
@@ -196,45 +147,7 @@ func make_anomaly_handler(w http.ResponseWriter, r *http.Request) {
 			if mt != websocket.TextMessage {
 				continue
 			}
-			//log.Println("recieved message: ", string(message))
-			dataMerger.Ml_handlers["anomaly"].SendUpdate(message)
-		}
-	}()
-}
-
-func make_classify_handler(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-
-	if err != nil {
-		log.Println("upgrade error:", err)
-		return
-	}
-
-	c.SetCloseHandler(func(code int, text string) error {
-		dataMerger.Ml_handlers["classify"].DisconnectML()
-		log.Println("disconnected:")
-		return nil
-	})
-	dataMerger.Ml_handlers["classify"].ConnectML(c)
-	go func() {
-		for {
-			mt, message, err := c.ReadMessage()
-			if err != nil {
-				if _, ok := err.(*websocket.CloseError); ok {
-					log.Println("Stop recieving. Disconnect")
-
-				} else {
-					log.Println("reading error :", err)
-				}
-				break
-			}
-			if mt != websocket.TextMessage {
-				log.Println("no text message, closing connection")
-				//log.Println("message type: ", mt, "message: ", message, "error: ", err)
-				continue
-			}
-			//log.Println("recieved message: ", string(message))
-			dataMerger.Ml_handlers["classify"].SendUpdate(message)
+			dataMerger.Ml_handlers[model].SendUpdate(message)
 		}
 	}()
 }
@@ -249,17 +162,14 @@ func main() {
 	dataMerger.Ml_handlers["forecast"] = datamanagers.NewMLHandler(0, 80)
 	dataMerger.Ml_handlers["anomaly"] = datamanagers.NewMLHandler(0, 200)
 	dataMerger.Ml_handlers["classify"] = datamanagers.NewMLHandler(750, 1000)
+	dataMerger.Ml_handlers["diagnoses"] = datamanagers.NewMLHandler(500, 1000)
 
 	http.HandleFunc("/health", health_handler)
 	http.HandleFunc("/send", new_data_handler)
 	http.HandleFunc("/data", new_reader_handler)
 
-	http.HandleFunc("/get_forecast", get_forecast_handler)
-	http.HandleFunc("/make_forecast", make_forecast_handler)
-	http.HandleFunc("/get_anomaly", get_anomaly_handler)
-	http.HandleFunc("/make_anomaly", make_anomaly_handler)
-	http.HandleFunc("/get_classify", get_classify_handler)
-	http.HandleFunc("/make_classify", make_classify_handler)
+	http.HandleFunc("back2front", back2front_handler)
+	http.HandleFunc("back2ml", back2ml_handler)
 
 	http.HandleFunc("/datasender", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "datasender.html")
