@@ -1,0 +1,21 @@
+
+services:
+  api:
+    build:
+      context: backend/main_back
+      dockerfile: Dockerfile
+    ports:
+      - 8000:8082
+  load_emu:
+    env_file: .env
+    depends_on:
+      - api
+    build:
+      context: backend/load_emulator
+      dockerfile: Dockerfile
+    volumes:
+      - ${DATA_DIR}:/data
+  anomaly_detector:
+    build:
+      context: ml
+      dockerfile: Dockerfile
