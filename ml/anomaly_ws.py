@@ -3,7 +3,7 @@ import _thread
 import time
 import rel
 from anomaly_detection.anomaly_norm import MADAnomalyDetector
-
+import json
 
 det = MADAnomalyDetector()
 
@@ -41,8 +41,8 @@ def on_message(ws, message):
         uterusTimestamps.append(cols[i]["ts"])
 
     ans = {
-        "bpm": bpmTimestamps,
-        "uterus": uterusTimestamps
+        "bpm": json.dumps(bpmTimestamps),
+        "uterus": json.dumps(uterusTimestamps)
     }
     ws.send(ans)
 
