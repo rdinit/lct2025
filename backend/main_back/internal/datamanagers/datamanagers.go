@@ -82,7 +82,7 @@ type MLHandler struct {
 }
 
 func NewMLHandler(overlap int, length int) *MLHandler {
-	return &MLHandler{overlap, length, 0, nil, make([]*websocket.Conn, 0)}
+	return &MLHandler{overlap, length, overlap, nil, make([]*websocket.Conn, 0)}
 }
 
 func (m *MLHandler) AddOutputConnection(c *websocket.Conn) {

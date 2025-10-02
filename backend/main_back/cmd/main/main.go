@@ -246,9 +246,9 @@ func main() {
 	dataManagers["bpm"] = datamanagers.NewDataManager("bpm", dataMerger)
 	dataManagers["uterus"] = datamanagers.NewDataManager("uterus", dataMerger)
 
-	dataMerger.Ml_handlers["forecast"] = datamanagers.NewMLHandler(0, 3000)
+	dataMerger.Ml_handlers["forecast"] = datamanagers.NewMLHandler(0, 50)
 	dataMerger.Ml_handlers["anomaly"] = datamanagers.NewMLHandler(0, 1)
-	dataMerger.Ml_handlers["classify"] = datamanagers.NewMLHandler(250, 1000)
+	dataMerger.Ml_handlers["classify"] = datamanagers.NewMLHandler(750, 1000)
 
 	http.HandleFunc("/health", health_handler)
 	http.HandleFunc("/send", new_data_handler)
