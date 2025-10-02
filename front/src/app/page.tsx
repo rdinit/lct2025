@@ -1,41 +1,59 @@
 "use client";
 
+import DataSender from "@/components/datasender/datasender";
 import PlotGraph from "@/components/plotGraph/plotGraph";
 import { MAX_PLOT_POINTS } from "@/constants";
 import { useEffect, useRef, useState } from "react";
 
 export default function Home () {
-    const socketConnection = useRef<WebSocket>(null!);
+    const bpmGetter = useRef<WebSocket>(null!);
+
+    const uterusGetter = useRef<WebSocket>(null!);
+
 
     const classifySocketConnection = useRef<WebSocket>(null!);
 
-    const [plotData, setPlotData] = useState<{
+    const [bpmData, setBpmData] = useState<{
+        time: number,
+        value: number
+    }[]>([]);
+    const [uterusData, setUterusData] = useState<{
         time: number,
         value: number
     }[]>([]);
     useEffect(() => {
         console.log("Opening wss");
-        socketConnection.current = new WebSocket("ws://localhost:8082/data?sensor_id=bpm");
-        socketConnection.current.onopen = function () {
-            console.log("Connected to WebSocket server");
-        };
+        bpmGetter.current = new WebSocket("ws://localhost:8082/data?sensor_id=bpm");
+        uterusGetter.current = new WebSocket("ws://localhost:8082/data?sensor_id=uterus");
 
         classifySocketConnection.current = new WebSocket("ws://localhost:8082/get_anomaly");
 
 
-        classifySocketConnection.current.onopen = () => {
-            console.log("Connected to classify");
-        };
-
         classifySocketConnection.current.onmessage = (event) => {
             console.log(event);
         };
-        socketConnection.current.onmessage = function (event: (Event & { data: string })) {
+
+        bpmGetter.current.onmessage = function (event: (Event & { data: string })) {
             const [timeString, valueString] = event.data.split(",");
             const time = parseFloat(timeString);
             const value = parseFloat(valueString);
 
-            setPlotData((state) => {
+            setBpmData((state) => {
+                if (state.length > MAX_PLOT_POINTS) {
+                    state.splice(0, 1);
+                }
+                return state.concat({
+                    time,
+                    value
+                });
+            });
+        };
+        uterusGetter.current.onmessage = function (event: (Event & { data: string })) {
+            const [timeString, valueString] = event.data.split(",");
+            const time = parseFloat(timeString);
+            const value = parseFloat(valueString);
+
+            setUterusData((state) => {
                 if (state.length > MAX_PLOT_POINTS) {
                     state.splice(0, 1);
                 }
@@ -46,27 +64,28 @@ export default function Home () {
             });
         };
 
-        socketConnection.current.onclose = function () {
+        bpmGetter.current.onclose = function () {
             console.log("WebSocket connection closed");
         };
 
-        socketConnection.current.onerror = function (error) {
+        bpmGetter.current.onerror = function (error) {
             console.error("WebSocket error:", error);
         };
 
         return () => {
-            if (socketConnection.current) {
+            if (bpmGetter.current) {
                 console.log("Closing wss");
 
-                socketConnection.current.close();
+                bpmGetter.current.close();
             }
         };
-    }, [setPlotData]);
+    }, []);
 
     return (
         <div className="absolute h-[100dvh] w-[100vw]">
-            <PlotGraph plotArray={plotData} className="h-[50%] w-full" dotColor="#e69710" lineColor="#e69710" axisColor="#e69710" title="BPM"/>
-            <PlotGraph plotArray={plotData} className="h-[50%] w-full" title="UTERUS"/>
+            <PlotGraph plotArray={bpmData} className="h-[50%] w-full" dotColor="#e69710" lineColor="#e69710" axisColor="#e69710" title="BPM"/>
+            <PlotGraph plotArray={uterusData} className="h-[50%] w-full" title="UTERUS"/>
+            <DataSender/>
         </div>
     );
 }
