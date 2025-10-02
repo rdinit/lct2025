@@ -21,12 +21,11 @@ type DataManager struct {
 	outputConnections []*websocket.Conn
 	mu                sync.RWMutex
 	data              []DataPoint
-	//dataChunks []DataChunk
-	//marks []Marks
+	datamerger        *DataMerger
 }
 
-func NewDataManager(Id string) *DataManager {
-	return &DataManager{Id, make([]*websocket.Conn, 0), sync.RWMutex{}, make([]DataPoint, 0)}
+func NewDataManager(Id string, datamerger *DataMerger) *DataManager {
+	return &DataManager{Id, make([]*websocket.Conn, 0), sync.RWMutex{}, make([]DataPoint, 0), datamerger}
 }
 
 func (dm *DataManager) AddOutputConnection(c *websocket.Conn) {
@@ -64,6 +63,7 @@ func (dm *DataManager) ProcessMessage(message []byte) {
 	dp := DataPoint{time, value}
 
 	dm.SendUpdate(message)
+	dm.datamerger.AppendData(dm.Id, dp)
 	dm.AppendData(dp)
 }
 
@@ -149,9 +149,14 @@ func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
 		d.bpm_data = append(d.bpm_data, dp)
 	case "uterus":
 		d.uterus_data = append(d.uterus_data, dp)
+	default:
+		log.Println("Unknown sensor id")
+		return
 	}
 	// merge data if both have same timestamp
+
 	for len(d.bpm_data) > 0 && len(d.uterus_data) > 0 {
+		fmt.Println(d.bpm_data[0].Time, d.uterus_data[0].Time)
 		if math.Abs(d.bpm_data[0].Time-d.uterus_data[0].Time) < d.eps {
 			d.merged_data = append(d.merged_data, MergedPoint{d.bpm_data[0].Time, d.bpm_data[0].Value, d.uterus_data[0].Value})
 			d.bpm_data = d.bpm_data[1:]
@@ -167,6 +172,26 @@ func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
 		}
 		d.merged_data_str = append(d.merged_data_str, d.mergedPointToCSV(d.merged_data[len(d.merged_data)-1]))
 		d.points_count++
+		fmt.Println(d.merged_data_str[len(d.merged_data_str)-1])
+	}
+
+	bplen := len(d.bpm_data)
+	utlen := len(d.uterus_data)
+	BOUND_VALUE := 3
+	if bplen-utlen >= BOUND_VALUE {
+		for (bplen - utlen) > BOUND_VALUE {
+			fmt.Println(d.bpm_data[0], d.bpm_data[0], 0)
+			d.bpm_data = d.bpm_data[1:]
+			bplen--
+		}
+	} else {
+		if utlen-bplen >= BOUND_VALUE {
+			for (utlen - bplen) > BOUND_VALUE {
+				fmt.Println(d.uterus_data[0], 0, d.uterus_data[0])
+				d.uterus_data = d.uterus_data[1:]
+				utlen--
+			}
+		}
 	}
 
 	for _, ml_handler := range d.Ml_handlers {

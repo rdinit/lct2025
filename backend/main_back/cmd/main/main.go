@@ -42,7 +42,6 @@ func new_data_handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c.SetCloseHandler(func(code int, text string) error {
-		log.Println("player disconnected:")
 		return nil
 	})
 
@@ -52,18 +51,16 @@ func new_data_handler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				if _, ok := err.(*websocket.CloseError); ok {
 					log.Println("Stop recieving. Disconnect")
-					//DisconnectPlayer(pid)
+
 				} else {
 					log.Println("reading error :", err)
 				}
 				break
 			}
 			if mt != websocket.TextMessage {
-				log.Println("no text message, closing connection")
-				log.Println("message type: ", mt, "message: ", message, "error: ", err)
 				continue
 			}
-			log.Println("recieved message: ", string(message))
+
 			dataManager.ProcessMessage(message)
 		}
 	}()
@@ -162,12 +159,6 @@ func make_forecast_handler(w http.ResponseWriter, r *http.Request) {
 		for {
 			mt, message, err := c.ReadMessage()
 			if err != nil {
-				if _, ok := err.(*websocket.CloseError); ok {
-					log.Println("Stop recieving. Disconnect")
-
-				} else {
-					log.Println("reading error :", err)
-				}
 				break
 			}
 			if mt != websocket.TextMessage {
@@ -198,17 +189,9 @@ func make_anomaly_handler(w http.ResponseWriter, r *http.Request) {
 		for {
 			mt, message, err := c.ReadMessage()
 			if err != nil {
-				if _, ok := err.(*websocket.CloseError); ok {
-					log.Println("Stop recieving. Disconnect")
-
-				} else {
-					log.Println("reading error :", err)
-				}
 				break
 			}
 			if mt != websocket.TextMessage {
-				log.Println("no text message, closing connection")
-				//log.Println("message type: ", mt, "message: ", message, "error: ", err)
 				continue
 			}
 			//log.Println("recieved message: ", string(message))
@@ -257,8 +240,8 @@ func main() {
 	rn = rand.Intn(100)
 	fmt.Println(rn)
 
-	dataManagers["bpm"] = datamanagers.NewDataManager("bpm")
-	dataManagers["uterus"] = datamanagers.NewDataManager("uterus")
+	dataManagers["bpm"] = datamanagers.NewDataManager("bpm", dataMerger)
+	dataManagers["uterus"] = datamanagers.NewDataManager("uterus", dataMerger)
 
 	dataMerger.Ml_handlers["forecast"] = datamanagers.NewMLHandler(0, 3000)
 	dataMerger.Ml_handlers["anomaly"] = datamanagers.NewMLHandler(0, 1)
