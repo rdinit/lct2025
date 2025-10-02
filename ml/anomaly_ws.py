@@ -41,10 +41,10 @@ def on_message(ws, message):
         uterusTimestamps.append(data[i]["ts"])
 
     ans = {
-        "bpm": json.dumps(bpmTimestamps),
-        "uterus": json.dumps(uterusTimestamps)
+        "bpm": bpmTimestamps,
+        "uterus": uterusTimestamps
     }
-    ws.send(ans)
+    ws.send(json.dumps(ans))
 
 def on_error(ws, error):
     print(error)
@@ -63,6 +63,6 @@ if __name__ == "__main__":
                               on_error=on_error,
                               on_close=on_close)
 
-    ws.run_forever(dispatcher=rel, reconnect=5) 
+    ws.run_forever(dispatcher=rel, reconnect=5)
     rel.signal(2, rel.abort)
     rel.dispatch()
