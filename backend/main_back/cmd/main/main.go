@@ -35,8 +35,11 @@ func new_data_handler(w http.ResponseWriter, r *http.Request) {
 		log.Println("upgrade error:", err)
 		return
 	}
-
-	dataManager := dataManagers[sensor_id]
+	dataManager, ok := dataManagers[sensor_id]
+	if !ok {
+		log.Println("sensor id not found:", sensor_id)
+		return
+	}
 
 	c.SetCloseHandler(func(code int, text string) error {
 		log.Println("player disconnected:")
@@ -76,8 +79,11 @@ func new_reader_handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dataManager := dataManagers[sensor_id]
-
+	dataManager, ok := dataManagers[sensor_id]
+	if !ok {
+		log.Println("sensor id not found:", sensor_id)
+		return
+	}
 	c.SetCloseHandler(func(code int, text string) error {
 		dataManager.RemoveOutputConnection(c)
 		log.Println("disconnected:")
@@ -251,8 +257,8 @@ func main() {
 	rn = rand.Intn(100)
 	fmt.Println(rn)
 
-	dataManagers["bpm"] = datamanagers.NewDataManager()
-	dataManagers["uterus"] = datamanagers.NewDataManager()
+	dataManagers["bpm"] = datamanagers.NewDataManager("bpm")
+	dataManagers["uterus"] = datamanagers.NewDataManager("uterus")
 
 	dataMerger.Ml_handlers["forecast"] = datamanagers.NewMLHandler(0, 3000)
 	dataMerger.Ml_handlers["anomaly"] = datamanagers.NewMLHandler(0, 1)

@@ -2,6 +2,7 @@ package datamanagers
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -24,10 +25,8 @@ type DataManager struct {
 	//marks []Marks
 }
 
-func NewDataManager() *DataManager {
-	return &DataManager{
-		data: make([]DataPoint, 0),
-	}
+func NewDataManager(Id string) *DataManager {
+	return &DataManager{Id, make([]*websocket.Conn, 0), sync.RWMutex{}, make([]DataPoint, 0)}
 }
 
 func (dm *DataManager) AddOutputConnection(c *websocket.Conn) {
@@ -50,6 +49,9 @@ func (dm *DataManager) AppendData(dp DataPoint) {
 }
 
 func (dm *DataManager) SendUpdate(message []byte) {
+	if dm.outputConnections == nil {
+		log.Println("No output connections")
+	}
 	for _, conn := range dm.outputConnections {
 		conn.WriteMessage(websocket.TextMessage, message)
 	}
@@ -136,7 +138,7 @@ func NewDataMerger() *DataMerger {
 }
 
 func (d *DataMerger) mergedPointToCSV(dp MergedPoint) string {
-	return fmt.Sprintf("%f,%f\n", dp.Time, dp.Bpm, dp.Uterus)
+	return fmt.Sprintf("%f,%f,%f", dp.Time, dp.Bpm, dp.Uterus)
 }
 
 func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
