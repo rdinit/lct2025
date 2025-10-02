@@ -13,11 +13,10 @@ def on_message(ws, message):
 
     out = svc.process_message(message, 3000)
     if out["ready"]:
-        ws.send(out["detection"])
-    print(out)
+        ws.send(out["forecast"])
 
 def on_error(ws, error):
-    print(error)
+    pass #print(error)
 
 def on_close(ws, close_status_code, close_msg):
     print("### closed ###")
@@ -26,7 +25,7 @@ def on_open(ws):
     print("Opened connection")
 
 if __name__ == "__main__":
-    websocket.enableTrace(True)
+    websocket.enableTrace(False)
     ws = websocket.WebSocketApp("ws://localhost:8082/make_forecast",
                               on_open=on_open,
                               on_message=on_message,

@@ -13,54 +13,122 @@ export default function Home () {
 
     const classifySocketConnection = useRef<WebSocket>(null!);
 
-    const [bpmData, setBpmData] = useState<{
-        time: number,
-        value: number
+
+    const anomalyGetter = useRef<WebSocket>(null!);
+
+
+    const forecastGetter = useRef<WebSocket>(null!);
+
+
+    const [isAnomaly, setIsAnomaly] = useState(false);
+
+
+    const predictbpmData = useRef<{
+        time: number;
+        value: number;
     }[]>([]);
-    const [uterusData, setUterusData] = useState<{
+    const predictuterusData = useRef<{
+        time: number;
+        value: number;
+    }[]>([]);
+    const bpmData = useRef<{
         time: number,
-        value: number
+        value: number,
+        isAnomaly?: boolean
+    }[]>([]);
+    const uterusData = useRef<{
+        time: number,
+        value: number,
+        isAnomaly?: boolean
     }[]>([]);
     useEffect(() => {
         console.log("Opening wss");
-        bpmGetter.current = new WebSocket("ws://localhost:8082/data?sensor_id=bpm");
-        uterusGetter.current = new WebSocket("ws://localhost:8082/data?sensor_id=uterus");
+        bpmGetter.current = new WebSocket("wss://14bit.itatmisis.ru/data?sensor_id=bpm");
+        uterusGetter.current = new WebSocket("wss://14bit.itatmisis.ru/data?sensor_id=uterus");
 
-        classifySocketConnection.current = new WebSocket("ws://localhost:8082/get_anomaly");
-
+        classifySocketConnection.current = new WebSocket("ws://14bit.itatmisis.ru/get_classify");
+        forecastGetter.current = new WebSocket("wss://14bit.itatmisis.ru/get_forecast");
+        anomalyGetter.current = new WebSocket("wss://14bit.itatmisis.ru/get_anomaly");
 
         classifySocketConnection.current.onmessage = (event) => {
             console.log(event);
+        };
+        anomalyGetter.current.onmessage = (event: (Event & { data: string })) => {
+            const anomalySplit = event.data.split(",");
+
+
+            const anomalyTime = Number.parseFloat(anomalySplit[0]);
+            const anomalyScore = Number.parseFloat(anomalySplit[anomalySplit.length - 1]);
+
+
+            console.log(`Anomaly time: ${anomalyTime} ${uterusData.current.length}`);
+
+
+            if (anomalyScore > 0) {
+                return;
+            }
+            for (let i = 0; i < uterusData.current.length; ++i) {
+                if (Math.abs(uterusData.current[i].time - anomalyTime) < 1) {
+                    uterusData.current[i].isAnomaly = true;
+                }
+            }
+            for (let i = 0; i < bpmData.current.length; ++i) {
+                if (Math.abs(bpmData.current[i].time - anomalyTime) < 1) {
+                    bpmData.current[i].isAnomaly = true;
+                }
+            }
+            setIsAnomaly(anomalyScore < 0);
+        };
+        forecastGetter.current.onmessage = (event: (Event & { data: string })) => {
+            const cols = event.data.split("\n");
+
+            console.log(cols.length);
+            predictbpmData.current = [];
+            for (const col of cols) {
+                const [timeString, bpmString, _] = col.split(",");
+                if (Number.isNaN(Number.parseFloat(timeString))) {
+                    continue;
+                }
+                predictbpmData.current.push({
+                    time: Number.parseFloat(timeString),
+                    value: Number.parseFloat(bpmString),
+                });
+            }
+            predictuterusData.current = [];
+            for (const col of cols) {
+                const [timeString, _, uterusString] = col.split(",");
+                if (Number.isNaN(Number.parseFloat(timeString))) {
+                    continue;
+                }
+                predictuterusData.current.push({
+                    time: Number.parseFloat(timeString),
+                    value: Number.parseFloat(uterusString)
+                });
+            }
         };
 
         bpmGetter.current.onmessage = function (event: (Event & { data: string })) {
             const [timeString, valueString] = event.data.split(",");
             const time = parseFloat(timeString);
             const value = parseFloat(valueString);
-
-            setBpmData((state) => {
-                if (state.length > MAX_PLOT_POINTS) {
-                    state.splice(0, 1);
-                }
-                return state.concat({
-                    time,
-                    value
-                });
+            if (bpmData.current.length > MAX_PLOT_POINTS) {
+                bpmData.current.splice(0, 1);
+            }
+            bpmData.current = bpmData.current.concat({
+                time,
+                value
             });
         };
         uterusGetter.current.onmessage = function (event: (Event & { data: string })) {
             const [timeString, valueString] = event.data.split(",");
             const time = parseFloat(timeString);
             const value = parseFloat(valueString);
-
-            setUterusData((state) => {
-                if (state.length > MAX_PLOT_POINTS) {
-                    state.splice(0, 1);
-                }
-                return state.concat({
-                    time,
-                    value
-                });
+            if (uterusData.current.length > MAX_PLOT_POINTS) {
+                uterusData.current.splice(0, 1);
+            }
+            uterusData.current = uterusData.current.concat({
+                time,
+                value
             });
         };
 
@@ -78,14 +146,53 @@ export default function Home () {
 
                 bpmGetter.current.close();
             }
+
+            if (uterusGetter.current) {
+                uterusGetter.current.close();
+            }
+            if (forecastGetter.current) {
+                forecastGetter.current.close();
+            }
         };
     }, []);
 
+    const [data, setData] = useState({
+        bpmData: [],
+        uterusData: [],
+        predictbpmData: [],
+        predictuterusData: []
+    });
+
+    const [timer, updateTimer] = useState(0);
+    useEffect(() => {
+        setData({
+            bpmData: bpmData.current,
+            uterusData: uterusData.current,
+            predictbpmData: predictbpmData.current,
+            predictuterusData: predictuterusData.current
+        });
+        const interval = setTimeout(() => {
+            console.log("Update");
+            updateTimer(timer ? 0 : 1);
+        }, 1000);
+        return () => {
+            clearInterval(interval);
+        };
+    }, [timer]);
+
     return (
         <div className="absolute h-[100dvh] w-[100vw]">
-            <PlotGraph plotArray={bpmData} className="h-[50%] w-full" dotColor="#e69710" lineColor="#e69710" axisColor="#e69710" title="BPM"/>
-            <PlotGraph plotArray={uterusData} className="h-[50%] w-full" title="UTERUS"/>
+            <PlotGraph plotArray={data.bpmData} predictData={data.predictbpmData} className="h-[40%] w-full" dotColor="#e69710" lineColor="#e69710" axisColor="#e69710" title="BPM"/>
+            <PlotGraph plotArray={data.uterusData} predictData={data.predictuterusData} className="h-[40%] w-full" title="UTERUS"/>
+
+
+            <div>
+                {isAnomaly ? "Риск гипоксии" : "Всё хорошо"} {isAnomaly}
+            </div>
+
             <DataSender/>
+
+
         </div>
     );
 }

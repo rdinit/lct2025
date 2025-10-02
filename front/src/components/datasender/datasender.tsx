@@ -37,7 +37,7 @@ export default function DataSender () {
                 bpmSender.current.send(message);
             }
         }
-        const sendDataId = setInterval(sendData, 1000);
+        const sendDataId = setInterval(sendData, 200);
         bpmSender.current = new WebSocket("ws://localhost:8082/send?sensor_id=bpm");
 
         bpmSender.current.onopen = () => {

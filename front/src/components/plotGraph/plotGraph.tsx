@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type PlotGraphProps = {
 
@@ -7,18 +7,28 @@ export type PlotGraphProps = {
         value: number,
         isAnomaly?: boolean
     }[];
+    predictData: {
+        time: number,
+        value: number,
+        isAnomaly?: boolean
+    }[];
     className?: string;
 
-    lineColor?: string
+    lineColor?: string;
     axisColor?: string;
     dotColor?: string;
     title: string
 };
 export default function PlotGraph (props: PlotGraphProps) {
-    const { plotArray, lineColor, axisColor, dotColor, title } = props;
-
+    const { plotArray, predictData, lineColor, axisColor, dotColor, title } = props;
+    const [updateTimer, setUpdateTimer] = useState(0);
 
     useEffect(() => {
+        let predictIndex = 0;
+        while (predictData.length > 0 && plotArray[plotArray.length - 1].time > predictData[predictIndex].time && predictIndex < predictData.length) {
+            predictIndex += 1;
+        }
+
         if (!sensorChartRef.current) {
             return;
         }
@@ -51,13 +61,20 @@ export default function PlotGraph (props: PlotGraphProps) {
         const padding = 40;
         const chartWidth = canvas.width - padding * 2;
         const chartHeight = canvas.height - padding * 2;
-        const times = plotArray.map((p) => p.time);
-        const values = plotArray.map((p) => p.value);
 
-        const minTime = Math.min(...times);
-        const maxTime = Math.max(...times);
-        const minValue = Math.min(...values);
-        const maxValue = Math.max(...values);
+
+        let minValue = 10000;
+        let maxValue = 0;
+
+        for (let i = 0; i < plotArray.length; ++i) {
+            minValue = Math.min(minValue, plotArray[i].value);
+            maxValue = Math.max(minValue, plotArray[i].value);
+        }
+        minValue -= 5;
+        maxValue += 5;
+
+        const minTime = plotArray[0].time;
+        const maxTime = predictData.length > 0 ? predictData[Math.min(plotArray.length, predictData.length)].time : plotArray[plotArray.length - 1].time;
         const valueRange = maxValue - minValue;
         const valuePadding = valueRange * 0.1;
         const displayMinValue = minValue - valuePadding;
@@ -108,38 +125,62 @@ export default function PlotGraph (props: PlotGraphProps) {
 
             ctx.fillText(value.toFixed(1), padding - 10, y + 4);
         }
+        ctx.beginPath();
 
-        if (plotArray.length > 1) {
+
+        for (let i = 0; i < plotArray.length + Math.min(plotArray.length, predictData.length); ++i) {
+            const predictDataIndex = i - plotArray.length;
+
+
+            const isPredict = predictDataIndex >= predictIndex;
+
+            if (i >= plotArray.length && !isPredict) {
+                continue;
+            }
+
+
+            const point = isPredict ? predictData[predictDataIndex] : plotArray[i];
+
             ctx.strokeStyle = lineColor ? lineColor : "#007bff";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
 
-            plotArray.forEach((point, index) => {
-                const x = padding + (point.time - minTime) * xScale;
-                const y = canvas.height - padding - (point.value - displayMinValue) * yScale;
 
-                if (index === 0) {
-                    ctx.moveTo(x, y);
-                }
-                else {
-                    ctx.lineTo(x, y);
-                }
-            });
-
-            ctx.stroke();
-        }
-
-        ctx.fillStyle = dotColor ? dotColor : "#007bff";
-        plotArray.forEach((point) => {
             const x = padding + (point.time - minTime) * xScale;
             const y = canvas.height - padding - (point.value - displayMinValue) * yScale;
+            ctx.lineWidth = 2;
 
+
+            if (isPredict) {
+                ctx.fillStyle = "#b5ebd0";
+                ctx.strokeStyle = "#b5ebd0";
+            }
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            }
+            else {
+                ctx.lineTo(x, y);
+            }
+            ctx.stroke();
             ctx.beginPath();
+            ctx.fillStyle = dotColor ? dotColor : "#007bff";
+
+
+            if (isPredict) {
+                ctx.fillStyle = "#b5ebd0";
+                ctx.strokeStyle = "#b5ebd0";
+            }
+
+
+            if (point?.isAnomaly) {
+                ctx.fillStyle = "#ff0000";
+                ctx.strokeStyle = "#ff0000";
+            }
+            const radius = point?.isAnomaly ? 5 : 3;
             ctx.arc(
-                x, y, 3, 0, 2 * Math.PI
+                x, y, radius, 0, 2 * Math.PI
             );
             ctx.fill();
-        });
+        }
+
 
         ctx.fillStyle = "#000";
         ctx.font = "16px Arial";
@@ -151,8 +192,11 @@ export default function PlotGraph (props: PlotGraphProps) {
         ctx.font = "14px Arial";
         ctx.textAlign = "left";
         ctx.fillText(`Current: ${lastPoint.value.toFixed(4)}`, padding, 30);
-    }, [axisColor, dotColor, lineColor, plotArray, title]);
+    }, [axisColor, dotColor, lineColor, plotArray, predictData, title,]);
 
+    useEffect(() => {
+        setUpdateTimer(1);
+    }, []);
     const sensorChartRef = useRef<HTMLCanvasElement>(null!);
 
     const boundingBoxRef = useRef<HTMLDivElement>(null!);

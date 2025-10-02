@@ -26,7 +26,7 @@ def on_open(ws):
     print("Opened connection")
 
 if __name__ == "__main__":
-    websocket.enableTrace(True)
+    websocket.enableTrace(False)
     ws = websocket.WebSocketApp("ws://localhost:8082/make_classify",
                               on_open=on_open,
                               on_message=on_message,

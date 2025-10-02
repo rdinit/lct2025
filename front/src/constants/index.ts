@@ -1,1 +1,1 @@
-export const MAX_PLOT_POINTS = 30;
+export const MAX_PLOT_POINTS = 6000;
