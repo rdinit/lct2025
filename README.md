@@ -12,7 +12,7 @@ Team Members:
 
 Презентация: [тык](https://google.com)
 
-Демонстрация веб-сервиса: [тык]([https://drive.google.com/file/d/1rjdbdda2kV9LLqoA42z9-2Js45z8ZWsJ/view?usp=sharing](https://google.com))
+Демонстрация веб-сервиса: [тык](https://google.com)
 
 ## Кейс "Веб-сервис предиктивной аналитики физиологических данных с интеграцией в медицинское оборудование"
 
