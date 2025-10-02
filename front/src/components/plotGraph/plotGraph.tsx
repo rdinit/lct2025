@@ -26,7 +26,7 @@ export default function PlotGraph (props: PlotGraphProps) {
 
     useEffect(() => {
         let predictIndex = 0;
-        while (predictData.length > 0 && plotArray[plotArray.length - 1].time > predictData[predictIndex].time && predictIndex < predictData.length) {
+        while (predictIndex < predictData.length && predictData.length > 0 && plotArray[plotArray.length - 1].time > predictData[predictIndex].time) {
             predictIndex += 1;
         }
 
