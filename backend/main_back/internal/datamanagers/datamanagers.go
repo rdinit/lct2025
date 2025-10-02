@@ -81,6 +81,10 @@ type MLHandler struct {
 	outputConnections []*websocket.Conn
 }
 
+func NewMLHandler(overlap int, length int) *MLHandler {
+	return &MLHandler{overlap, length, 0, nil, make([]*websocket.Conn, 0)}
+}
+
 func (m *MLHandler) AddOutputConnection(c *websocket.Conn) {
 	m.outputConnections = append(m.outputConnections, c)
 }
@@ -94,8 +98,8 @@ func (m *MLHandler) RemoveOutputConnection(c *websocket.Conn) {
 	}
 }
 
-func NewMLHandler(overlap int, length int) *MLHandler {
-	return &MLHandler{overlap, length, 0, nil, make([]*websocket.Conn, 0)}
+func (m *MLHandler) ConnectML(c *websocket.Conn) {
+	m.ml_connection = c
 }
 
 func (m *MLHandler) AskML(messages []string) {

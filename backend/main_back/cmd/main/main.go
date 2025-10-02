@@ -155,6 +155,7 @@ func make_forecast_handler(w http.ResponseWriter, r *http.Request) {
 		log.Println("disconnected:")
 		return nil
 	})
+	dataMerger.Ml_handlers["forecast"].ConnectML(c)
 	go func() {
 		for {
 			mt, message, err := c.ReadMessage()
@@ -185,6 +186,7 @@ func make_anomaly_handler(w http.ResponseWriter, r *http.Request) {
 		log.Println("disconnected:")
 		return nil
 	})
+	dataMerger.Ml_handlers["anomaly"].ConnectML(c)
 	go func() {
 		for {
 			mt, message, err := c.ReadMessage()
@@ -213,6 +215,7 @@ func make_classify_handler(w http.ResponseWriter, r *http.Request) {
 		log.Println("disconnected:")
 		return nil
 	})
+	dataMerger.Ml_handlers["classify"].ConnectML(c)
 	go func() {
 		for {
 			mt, message, err := c.ReadMessage()
