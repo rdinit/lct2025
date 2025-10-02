@@ -35,10 +35,10 @@ def on_message(ws, message):
     bpmTimestamps = []
     uterusTimestamps = []
     for i in outBpm:
-        bpmTimestamps.append(cols[i]["ts"])
+        bpmTimestamps.append(data[i]["ts"])
 
     for i in outUterus:
-        uterusTimestamps.append(cols[i]["ts"])
+        uterusTimestamps.append(data[i]["ts"])
 
     ans = {
         "bpm": json.dumps(bpmTimestamps),
