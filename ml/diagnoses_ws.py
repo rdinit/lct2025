@@ -22,17 +22,17 @@ def on_message(ws, message):
         t.append(float(parts[0]))
 
     data = {
-        "tachycardia": svc.detect_tachycardia(x, t, svc.config),
-        "bradycardia": svc.detect_bradycardia(x, t, svc.config),
-        "decelerations": svc.detect_decelerations(x, t, svc.config),
-        "reduced_variability": svc.detect_reduced_variability(x, t, svc.config),
+        "tachycardia": svc.detect_tachycardia(x, t, svc.AnomalyDetectionConfig),
+        "bradycardia": svc.detect_bradycardia(x, t, svc.AnomalyDetectionConfig),
+        "decelerations": svc.detect_decelerations(x, t, svc.AnomalyDetectionConfig),
+        "reduced_variability": svc.detect_reduced_variability(x, t, svc.AnomalyDetectionConfig),
     }
 
     ws.send(json.dumps(data))
 
 
 def on_error(ws, error):
-    pass  # print(error)
+    print(error)
 
 
 def on_close(ws, close_status_code, close_msg):
