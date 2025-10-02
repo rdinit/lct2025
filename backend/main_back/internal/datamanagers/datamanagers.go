@@ -197,8 +197,13 @@ func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
 	for _, ml_handler := range d.Ml_handlers {
 		if ml_handler.last_point-ml_handler.overlap+ml_handler.lenght <= int(d.points_count) {
 			fmt.Println("points", ml_handler.last_point, ml_handler.overlap, ml_handler.lenght, d.points_count)
+
+			start := ml_handler.last_point - ml_handler.overlap
+			end := ml_handler.last_point - ml_handler.overlap + ml_handler.lenght
+			fmt.Println("start", start, "end", end)
+			ml_handler.AskML(d.merged_data_str[start:end])
+
 			ml_handler.last_point = d.points_count
-			ml_handler.AskML(d.merged_data_str[ml_handler.last_point-ml_handler.overlap : ml_handler.last_point-ml_handler.overlap+ml_handler.lenght])
 		}
 	}
 }
