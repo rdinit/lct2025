@@ -46,12 +46,15 @@ export default function Home () {
         bpmGetter.current = new WebSocket("wss://14bit.itatmisis.ru/data?sensor_id=bpm");
         uterusGetter.current = new WebSocket("wss://14bit.itatmisis.ru/data?sensor_id=uterus");
 
-        classifySocketConnection.current = new WebSocket("ws://14bit.itatmisis.ru/get_classify");
+        classifySocketConnection.current = new WebSocket("wss://14bit.itatmisis.ru/get_classify");
         forecastGetter.current = new WebSocket("wss://14bit.itatmisis.ru/get_forecast");
         anomalyGetter.current = new WebSocket("wss://14bit.itatmisis.ru/get_anomaly");
 
         classifySocketConnection.current.onmessage = (event) => {
-            console.log(event);
+            const hypoxiaScore = Number.parseFloat(event.data);
+            console.log(hypoxiaScore);
+
+            setIsAnomaly(hypoxiaScore < 0.5);
         };
         anomalyGetter.current.onmessage = (event: (Event & { data: string })) => {
             const anomalySplit = event.data.split(",");
@@ -61,7 +64,7 @@ export default function Home () {
             const anomalyScore = Number.parseFloat(anomalySplit[anomalySplit.length - 1]);
 
 
-            console.log(`Anomaly time: ${anomalyTime} ${uterusData.current.length}`);
+            console.log(`Anomaly time: ${anomalyTime} ${uterusData.current.length} ${anomalyScore}`);
 
 
             if (anomalyScore > 0) {
@@ -182,6 +185,12 @@ export default function Home () {
 
     return (
         <div className="absolute h-[100dvh] w-[100vw]">
+
+            <div className="flex w-full justify-between px-10 py-12">
+                <div className="font-alumni text-2xl text-black">
+                    Иванов Иван Иванович
+                </div>
+            </div>
             <PlotGraph plotArray={data.bpmData} predictData={data.predictbpmData} className="h-[40%] w-full" dotColor="#e69710" lineColor="#e69710" axisColor="#e69710" title="BPM"/>
             <PlotGraph plotArray={data.uterusData} predictData={data.predictuterusData} className="h-[40%] w-full" title="UTERUS"/>
 
@@ -190,7 +199,7 @@ export default function Home () {
                 {isAnomaly ? "Риск гипоксии" : "Всё хорошо"} {isAnomaly}
             </div>
 
-            <DataSender/>
+            {/* <DataSender/> */}
 
 
         </div>

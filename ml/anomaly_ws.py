@@ -2,17 +2,49 @@ import websocket
 import _thread
 import time
 import rel
-from anomaly_detection.streaming_anomaly_service import AnomalyService
+from anomaly_detection.anomaly_norm import MADAnomalyDetector
 
 
-
-det = AnomalyService(model_dir="anomaly_detection/artifacts")
+det = MADAnomalyDetector()
 
 def on_message(ws, message):
-    out = det.process_message(message)
-    if out["ready"]:
-        ws.send(out["detection"])
-    print(out)
+    current_gid = "0"
+    current_sid = "0"
+
+    data = []
+    x = []
+    y = []
+    cols = message.strip().split('\n')
+
+    for col in cols:
+        parts = col.split(',')
+        x.append(float(parts[1]))
+        y.append(float(parts[2]))
+        data.append({
+            "ts": float(parts[0]),
+            "bpm": float(parts[1]),
+            "ut": float(parts[2]),
+            "gid": current_gid,
+            "sid": current_sid
+        })
+
+
+    outBpm = det.detect_anomalies(x)
+    outUterus = det.detect_anomalies(y)
+
+    bpmTimestamps = []
+    uterusTimestamps = []
+    for i in outBpm:
+        bpmTimestamps.append(cols[i]["ts"])
+
+    for i in outUterus:
+        uterusTimestamps.append(cols[i]["ts"])
+
+    ans = {
+        "bpm": bpmTimestamps,
+        "uterus": uterusTimestamps
+    }
+    ws.send(ans)
 
 def on_error(ws, error):
     print(error)

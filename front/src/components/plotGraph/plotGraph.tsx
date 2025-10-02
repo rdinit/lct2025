@@ -63,13 +63,14 @@ export default function PlotGraph (props: PlotGraphProps) {
         const chartHeight = canvas.height - padding * 2;
 
 
-        let minValue = 10000;
-        let maxValue = 0;
+        let minValue = 100000;
+        let maxValue = -100;
 
         for (let i = 0; i < plotArray.length; ++i) {
             minValue = Math.min(minValue, plotArray[i].value);
-            maxValue = Math.max(minValue, plotArray[i].value);
+            maxValue = Math.max(maxValue, plotArray[i].value);
         }
+
         minValue -= 5;
         maxValue += 5;
 
@@ -174,7 +175,9 @@ export default function PlotGraph (props: PlotGraphProps) {
                 ctx.fillStyle = "#ff0000";
                 ctx.strokeStyle = "#ff0000";
             }
-            const radius = point?.isAnomaly ? 5 : 3;
+
+
+            const radius = point?.isAnomaly ? 4 : 0;
             ctx.arc(
                 x, y, radius, 0, 2 * Math.PI
             );
