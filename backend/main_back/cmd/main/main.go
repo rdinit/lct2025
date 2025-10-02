@@ -168,8 +168,8 @@ func main() {
 	http.HandleFunc("/send", new_data_handler)
 	http.HandleFunc("/data", new_reader_handler)
 
-	http.HandleFunc("back2front", back2front_handler)
-	http.HandleFunc("back2ml", back2ml_handler)
+	http.HandleFunc("/back2front", back2front_handler)
+	http.HandleFunc("/back2ml", back2ml_handler)
 
 	http.HandleFunc("/datasender", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "datasender.html")
