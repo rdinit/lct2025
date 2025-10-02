@@ -59,7 +59,7 @@ export default function PlotGraph (props: PlotGraphProps) {
         ctx.clearRect(
             0, 0, canvas.width, canvas.height
         );
-        const padding = 40;
+        const padding = 45;
         const chartWidth = canvas.width - padding * 2;
         const chartHeight = canvas.height - padding * 2;
 
@@ -72,19 +72,17 @@ export default function PlotGraph (props: PlotGraphProps) {
             maxValue = Math.max(maxValue, plotArray[i].value);
         }
 
-        minValue -= 5;
-        maxValue += 5;
 
         const minTime = plotArray[0].time;
         const maxTime = plotArray[plotArray.length - 1].time;
         const valueRange = maxValue - minValue;
         const valuePadding = valueRange * 0.1;
-        const displayMinValue = minValue - valuePadding;
-        const displayMaxValue = maxValue + valuePadding;
+        const displayMinValue = minValue;
+        const displayMaxValue = maxValue;
         const xScale = chartWidth / (maxTime - minTime || 1) / 1.5;
         const yScale = chartHeight / (displayMaxValue - displayMinValue || 1);
 
-        ctx.strokeStyle = axisColor ? axisColor : "#ccc";
+        ctx.strokeStyle = axisColor ? axisColor : "#262626";
         ctx.lineWidth = 1;
 
         ctx.beginPath();
@@ -98,7 +96,7 @@ export default function PlotGraph (props: PlotGraphProps) {
         ctx.stroke();
 
         ctx.fillStyle = "#666";
-        ctx.font = "12px Arial";
+        ctx.font = "16px Arial";
         ctx.textAlign = "center";
 
         const timeStep = (maxTime - minTime) / 5;
@@ -110,6 +108,11 @@ export default function PlotGraph (props: PlotGraphProps) {
             ctx.moveTo(x, canvas.height - padding - 5);
             ctx.lineTo(x, canvas.height - padding + 5);
             ctx.stroke();
+
+            ctx.moveTo(x, canvas.height - padding - 5);
+            ctx.lineTo(x, 0);
+            ctx.stroke();
+
 
             ctx.fillText(`${(time / 60).toFixed(2)}мин`, x, canvas.height - padding + 20);
         }
@@ -125,7 +128,11 @@ export default function PlotGraph (props: PlotGraphProps) {
             ctx.lineTo(padding + 5, y);
             ctx.stroke();
 
-            ctx.fillText(value.toFixed(1), padding - 10, y + 4);
+            ctx.moveTo(padding - 5, y);
+            ctx.lineTo(maxTime * xScale * 1.5 + padding, y);
+            ctx.stroke();
+
+            ctx.fillText(value.toFixed(1), padding - 5, y + 4);
         }
         ctx.beginPath();
 
@@ -168,8 +175,8 @@ export default function PlotGraph (props: PlotGraphProps) {
 
 
             if (isPredict) {
-                ctx.fillStyle = "#b5ebd0";
-                ctx.strokeStyle = "#b5ebd0";
+                ctx.fillStyle = "#25592d";
+                ctx.strokeStyle = "#25592d";
             }
 
 

@@ -20,6 +20,8 @@ export default function Home () {
 
     const forecastGetter = useRef<WebSocket>(null!);
 
+    const diagnosesGetter = useRef<WebSocket>(null!);
+
 
     const [hypoxiaScore, setHypoxiaScore] = useState(1);
 
@@ -50,9 +52,15 @@ export default function Home () {
         bpmGetter.current = new WebSocket("wss://14bit.itatmisis.ru/data?sensor_id=bpm");
         uterusGetter.current = new WebSocket("wss://14bit.itatmisis.ru/data?sensor_id=uterus");
 
-        classifySocketConnection.current = new WebSocket("wss://14bit.itatmisis.ru/get_classify");
-        forecastGetter.current = new WebSocket("wss://14bit.itatmisis.ru/get_forecast");
-        anomalyGetter.current = new WebSocket("wss://14bit.itatmisis.ru/get_anomaly");
+        classifySocketConnection.current = new WebSocket("wss://14bit.itatmisis.ru/back2front?model=classify");
+        forecastGetter.current = new WebSocket("wss://14bit.itatmisis.ru/back2front?model=forecast");
+        anomalyGetter.current = new WebSocket("wss://14bit.itatmisis.ru/back2front?model=anomaly");
+        diagnosesGetter.current = new WebSocket("wss://14bit.itatmisis.ru/back2front?model=diagnoses");
+
+
+        diagnosesGetter.current.onmessage = (event: (Event & { data: string })) => {
+            console.log(event);
+        };
 
         classifySocketConnection.current.onmessage = (event) => {
             const hypoxiaScoreBuf = Number.parseFloat(event.data);
@@ -184,8 +192,8 @@ export default function Home () {
     return (
         <div className="absolute h-[100dvh] w-[100vw]">
 
-            <div className="font-alumni flex w-full justify-between px-10 py-12 text-black">
-                <div>
+            <div className="font-alumni flex w-full items-center justify-around px-10 pt-12 text-black">
+                <div className="w-[400px]">
                     <div>
                         <span className="text-2xl">Пациент: </span>
                         <span className="text-3xl">Егорова Любовь Ивановна</span>
@@ -196,6 +204,10 @@ export default function Home () {
                         <span className="ml-5 text-2xl">Неделя беременности: </span>
                         <span className="text-3xl">23</span>
                     </div>
+
+
+                </div>
+                <div className="w-[500px]">
                     <div>
                         <span className="text-2xl">Время наблюдения: </span>
                         <span className="text-3xl">{(currentTime / 60).toFixed(2)}Мин</span>
@@ -207,27 +219,26 @@ export default function Home () {
                         <span className="text-3xl">{uterusCurrent.toFixed(1)}</span>
                     </div>
                     <div className={ clsx("text-2xl", hypoxiaScore < 0.5 ? "text-red-600" : "text-green-600")}>
-                        {hypoxiaScore < 0.5 ? "Риск Гипоксии" : "Риск гипоксии отсутствует"}  {(1 - hypoxiaScore).toFixed(2)}
+                        Риск Гипоксии:  {(1 - hypoxiaScore).toFixed(2)}
                     </div>
-
                 </div>
             </div>
             <PlotGraph
                 currentTime={currentTime}
                 plotArray={data.bpmData}
                 predictData={data.predictbpmData}
-                className="h-[30%] w-full"
+                className="ml-2 h-[40%] w-full"
                 dotColor="#e69710"
                 lineColor="#e69710"
-                axisColor="#e69710"
                 title="ЧСС"
             />
             <PlotGraph
                 currentTime={currentTime}
                 plotArray={data.uterusData}
                 predictData={data.predictuterusData}
-                className="h-[30%] w-full"
-                title="Сократительная активности"
+                className="ml-2 h-[40%] w-full"
+                title="Сократительной активности"
+
             />
 
 
