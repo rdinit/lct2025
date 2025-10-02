@@ -9,7 +9,6 @@ from anomaly_detection.streaming_anomaly_service import AnomalyService
 det = AnomalyService(model_dir="anomaly_detection/artifacts")
 
 def on_message(ws, message):
-
     out = det.process_message(message)
     if out["ready"]:
         ws.send(out["detection"])

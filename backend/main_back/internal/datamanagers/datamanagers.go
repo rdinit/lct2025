@@ -95,11 +95,15 @@ func (m *MLHandler) RemoveOutputConnection(c *websocket.Conn) {
 }
 
 func NewMLHandler(overlap int, length int) *MLHandler {
-	return &MLHandler{overlap, length, -1, nil, make([]*websocket.Conn, 0)}
+	return &MLHandler{overlap, length, 0, nil, make([]*websocket.Conn, 0)}
 }
 
 func (m *MLHandler) AskML(messages []string) {
 	message := []byte(strings.Join(messages, "\n"))
+
+	if m.ml_connection == nil {
+		return
+	}
 	m.ml_connection.WriteMessage(websocket.TextMessage, message)
 }
 
@@ -200,7 +204,7 @@ func (d *DataMerger) AppendData(sensor_id string, dp DataPoint) {
 
 			start := ml_handler.last_point - ml_handler.overlap
 			end := ml_handler.last_point - ml_handler.overlap + ml_handler.lenght
-			fmt.Println("start", start, "end", end)
+			fmt.Println("start", start, "end", end, " ", d.merged_data_str[0])
 			ml_handler.AskML(d.merged_data_str[start:end])
 
 			ml_handler.last_point = d.points_count
