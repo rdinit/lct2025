@@ -16,7 +16,7 @@ COPY . .
 # CGO_ENABLED=0 disables CGO, creating a statically linked binary
 # -o /app/main specifies the output binary name and path
 # -ldflags="-s -w" reduces the binary size by stripping debug info
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o /main .
+RUN cd cmd/main && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o /main .
 
 # Runtime Stage
 FROM alpine:3.19
