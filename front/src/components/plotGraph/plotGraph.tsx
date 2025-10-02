@@ -18,6 +18,7 @@ export type PlotGraphProps = {
     axisColor?: string;
     dotColor?: string;
     title: string
+    currentTime: number;
 };
 export default function PlotGraph (props: PlotGraphProps) {
     const { plotArray, predictData, lineColor, axisColor, dotColor, title } = props;
@@ -75,12 +76,12 @@ export default function PlotGraph (props: PlotGraphProps) {
         maxValue += 5;
 
         const minTime = plotArray[0].time;
-        const maxTime = predictData.length > 0 ? predictData[Math.min(plotArray.length, predictData.length)].time : plotArray[plotArray.length - 1].time;
+        const maxTime = plotArray[plotArray.length - 1].time;
         const valueRange = maxValue - minValue;
         const valuePadding = valueRange * 0.1;
         const displayMinValue = minValue - valuePadding;
         const displayMaxValue = maxValue + valuePadding;
-        const xScale = chartWidth / (maxTime - minTime || 1);
+        const xScale = chartWidth / (maxTime - minTime || 1) / 1.5;
         const yScale = chartHeight / (displayMaxValue - displayMinValue || 1);
 
         ctx.strokeStyle = axisColor ? axisColor : "#ccc";
@@ -110,7 +111,7 @@ export default function PlotGraph (props: PlotGraphProps) {
             ctx.lineTo(x, canvas.height - padding + 5);
             ctx.stroke();
 
-            ctx.fillText(time.toFixed(1), x, canvas.height - padding + 20);
+            ctx.fillText(`${(time / 60).toFixed(2)}мин`, x, canvas.height - padding + 20);
         }
 
         ctx.textAlign = "right";
@@ -161,6 +162,7 @@ export default function PlotGraph (props: PlotGraphProps) {
                 ctx.lineTo(x, y);
             }
             ctx.stroke();
+            ctx.fill();
             ctx.beginPath();
             ctx.fillStyle = dotColor ? dotColor : "#007bff";
 
@@ -177,7 +179,7 @@ export default function PlotGraph (props: PlotGraphProps) {
             }
 
 
-            const radius = point?.isAnomaly ? 4 : 0;
+            const radius = point?.isAnomaly ? 3 : 0;
             ctx.arc(
                 x, y, radius, 0, 2 * Math.PI
             );
@@ -188,13 +190,12 @@ export default function PlotGraph (props: PlotGraphProps) {
         ctx.fillStyle = "#000";
         ctx.font = "16px Arial";
         ctx.textAlign = "center";
-        ctx.fillText(`Sensor ${title} - Real-time Data`, canvas.width / 2, 20);
+        ctx.fillText(`Сенсор ${title}`, canvas.width / 2, 20);
 
         const lastPoint = plotArray[plotArray.length - 1];
         ctx.fillStyle = "#d9534f";
         ctx.font = "14px Arial";
         ctx.textAlign = "left";
-        ctx.fillText(`Current: ${lastPoint.value.toFixed(4)}`, padding, 30);
     }, [axisColor, dotColor, lineColor, plotArray, predictData, title,]);
 
     useEffect(() => {
