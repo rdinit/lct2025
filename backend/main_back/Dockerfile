@@ -28,6 +28,8 @@ FROM alpine:3.19
 # Copy the built binary from the builder stage
 COPY --from=builder /main .
 
+COPY  cmd/main .
+
 # Expose the port your Go application listens on (e.g., 8080)
 #EXPOSE 8082
 

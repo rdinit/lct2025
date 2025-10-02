@@ -15,12 +15,12 @@ export default function Home () {
     }[]>([]);
     useEffect(() => {
         console.log("Opening wss");
-        socketConnection.current = new WebSocket("wss://localhost/data?sensor_id=0");
+        socketConnection.current = new WebSocket("ws://localhost:8082/data?sensor_id='bpm'");
         socketConnection.current.onopen = function () {
             console.log("Connected to WebSocket server");
         };
 
-        classifySocketConnection.current = new WebSocket("wss://lct.123581321.ru/get_classify?sensor_id=0");
+        classifySocketConnection.current = new WebSocket("ws://localhost:8082/get_classify");
 
 
         classifySocketConnection.current.onopen = () => {
