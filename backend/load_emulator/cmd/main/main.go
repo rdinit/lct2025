@@ -20,7 +20,7 @@ type SensorData struct {
 	Value float64
 }
 
-func readCSVFile(filename string) ([]SensorData, error) {
+func readCSVFile(filename string, prev_time float64) ([]SensorData, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func readCSVFile(filename string) ([]SensorData, error) {
 		}
 
 		data = append(data, SensorData{
-			Time:  timeSec,
+			Time:  timeSec + prev_time,
 			Value: value,
 		})
 	}
@@ -98,13 +98,16 @@ func readAllSensorData(directory string) ([]SensorData, error) {
 	log.Printf("Found %d CSV files in %s: %v", len(csvFiles), directory, csvFiles)
 
 	var allData []SensorData
+	prev_time := 0.0
 	for _, file := range csvFiles {
-		data, err := readCSVFile(file)
+		data, err := readCSVFile(file, prev_time)
 		if err != nil {
 			return nil, err
 		}
 		log.Printf("Read %d data points from %s", len(data), file)
 		allData = append(allData, data...)
+
+		prev_time = data[len(data)-1].Time
 	}
 
 	log.Printf("Total data points from %s: %d", directory, len(allData))
